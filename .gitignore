@@ -1,0 +1,4 @@
+# Dataset and Large Files
+cifar_resnet/data/
+*.tar.gz
+*.pth
