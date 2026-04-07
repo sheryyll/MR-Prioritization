@@ -25,3 +25,11 @@ cifar_env\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 ```
+
+### 3. Run the script : cifar10_resnet.ipynb
+
+### 4. To generate Mutants and MR
+``` bash
+pip install pandas
+python mutation_engine.py
+```
