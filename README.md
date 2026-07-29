@@ -1,35 +1,63 @@
-# MR-Prioritization for Machine Learning 
-(read this)
+# MR-Rank: A Scoring Framework for Metamorphic Relation Prioritization in ML Systems
 
-This repository contains the source code for my final year project focusing on **Metamorphic Testing (MT)**. Specifically, it explores the prioritization of **Metamorphic Relations (MRs)** using a **ResNet-18** model trained on the **CIFAR-10** dataset.
+Final-year engineering project (Mangalore Institute of Technology & Engineering) implementing
+MR-Rank, a systematic scoring framework for prioritizing Metamorphic Relations (MRs) when
+testing Machine Learning models.
 
-## 🛠️ Getting Started
+## Problem
 
-To get this project running on your local machine, follow these steps:
+ML models cannot be tested with traditional pass/fail assertions (the "Oracle Problem").
+Metamorphic Testing (MT) solves this by checking that specific transformations (e.g., flipping
+an image) should not change a model's prediction. But defining dozens of these relations leads
+to the "MR Explosion" problem: exhaustively running all of them is computationally expensive.
 
-### 1. Clone the Repository
+MR-Rank ranks MRs by effectiveness (Fault Detection Rate, Execution Cost, Functional Diversity)
+so the most valuable tests can be run first.
+
+## Project Structure
+
+mr-rank/
+  src/mrrank/    - installable package: data, model, MR engine, mutation engine,
+                   evaluation, ranking, metrics, CLI
+  configs/       - seeds, paths, hyperparameters
+  notebooks/     - Kaggle/exploratory notebooks
+  outputs/       - generated artifacts: kill matrix, rankings, plots (not committed)
+  mutants/       - generated mutant model weights (not committed)
+  app/           - Streamlit results dashboard
+  tests/         - unit tests
+  legacy/        - archived earlier exploration (not tracked in git)
+
+## Setup
+
+### 1. Clone the repository
 ```bash
-git clone [https://github.com/sheryyll/MR-Prioritization.git](https://github.com/sheryyll/MR-Prioritization.git)
+git clone https://github.com/sheryyll/MR-Prioritization.git
 cd MR-Prioritization
 ```
 
-### 2. Set Up the Environment
-Since the virtual environment was not pushed to GitHub, you need to create your own:
+### 2. Create a virtual environment
 ```bash
-# Create a new virtual environment
-python -m venv cifar_env
-
-# Activate it (Windows)
-cifar_env\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
+python -m venv .venv
+# Windows
+.venv\Scripts\Activate.ps1
+# macOS/Linux
+source .venv/bin/activate
 ```
 
-### 3. Run the script : cifar10_resnet.ipynb
-
-### 4. To generate Mutants and MR
-``` bash
-pip install pandas
-python mutation_engine.py
+### 3. Install the package (editable mode)
+```bash
+pip install -e .
 ```
+This installs mrrank plus all dependencies declared in pyproject.toml. Local installs use
+CPU-only PyTorch (see below); training runs on Kaggle/Colab GPU notebooks instead.
+
+### CPU-only PyTorch (local development only)
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+```
+
+## Status
+
+Under active development. See project report in docs/ (Phase 1 report) for full methodology,
+including the MR library (Appendix A), mutation operator specifications (Appendix B), and
+evaluation metrics (Appendix C).

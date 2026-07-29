@@ -1,4 +1,0 @@
-
-https://www.cs.toronto.edu/~kriz/cifar.html
-
-https://code.google.com/archive/p/cuda-convnet/

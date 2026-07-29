@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mrrank"
+version = "0.1.0"
+description = "MR-Rank: A Scoring Framework for Metamorphic Relation Prioritization in ML Systems"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+    "opencv-python>=4.7",
+    "numpy>=1.24",
+    "scikit-learn>=1.3",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "seaborn>=0.12",
+    "pandas>=2.0",
+    "tqdm",
+]
+
+[project.scripts]
+mrrank = "mrrank.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

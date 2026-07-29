@@ -1,4 +1,42 @@
-# Dataset and Large Files
-cifar_resnet/data/
+﻿# ==== Legacy (archived, not part of the current implementation) ====
+legacy/
+
+# ==== Python ====
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# ==== Virtual environments ====
+venv/
+.venv/
+env/
+
+# ==== Jupyter ====
+.ipynb_checkpoints/
+
+# ==== Datasets ====
+data/
 *.tar.gz
+
+# ==== Model weights & large binaries ====
 *.pth
+*.pt
+mutants/*.pth
+
+# ==== Generated outputs (regenerable, not source) ====
+outputs/*.npy
+outputs/*.pkl
+outputs/*.csv
+outputs/*.json
+outputs/*.png
+outputs/logs/
+
+# ==== OS / editor cruft ====
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
