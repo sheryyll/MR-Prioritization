@@ -97,3 +97,28 @@ CIFAR10_STD = (0.2023, 0.1994, 0.2010)
 #    appear in this evaluation subset."
 EVAL_IMAGES_PER_CLASS = 50
 EVAL_SUBSET_SIZE = EVAL_IMAGES_PER_CLASS * NUM_CLASSES  # 500
+
+# ---------------------------------------------------------------------------
+# Training hyperparameters (report Section 4.2 / 4.3, Model Module)
+# ---------------------------------------------------------------------------
+TRAIN_BATCH_SIZE = 128
+TRAIN_LR = 0.1
+TRAIN_MOMENTUM = 0.9
+TRAIN_WEIGHT_DECAY = 5e-4
+TRAIN_EPOCHS = 100  # report: "up to 100 epochs, targeting >= 80% test accuracy"
+
+# Model seeds. Model A is the baseline SUT (mutated 80 times in Phase 4).
+# Model B is a fresh, differently-seeded ResNet-18 used to test whether the
+# ML Meta-Classifier generalizes to an unseen model (Phase 8 / supplementary
+# doc Section 6.3: "Use a different random seed than Model A").
+MODEL_A_SEED = 42
+MODEL_B_SEED = 123
+
+MODEL_A_CHECKPOINT = CHECKPOINTS_DIR / "model_A.pth"
+MODEL_B_CHECKPOINT = CHECKPOINTS_DIR / "model_B.pth"
+
+# Accuracy target band (report Section 1.3, Objective 1 + step-by-step doc):
+# "at least 80%" but explicitly NOT much higher -- a near-perfect model is
+# harder to break with mutations, defeating the purpose of Phase 4.
+TARGET_ACC_MIN = 0.80
+TARGET_ACC_MAX = 0.85
