@@ -122,3 +122,15 @@ MODEL_B_CHECKPOINT = CHECKPOINTS_DIR / "model_B.pth"
 # harder to break with mutations, defeating the purpose of Phase 4.
 TARGET_ACC_MIN = 0.80
 TARGET_ACC_MAX = 0.85
+
+
+# ---------------------------------------------------------------------------
+# Early stopping (added after observing Model A/B overshoot the target band
+# due to late-training memorization once cosine-annealed LR gets small --
+# no data augmentation is used, so the network eventually fits the training
+# set near-perfectly once LR is low enough, pushing test_acc above the
+# intended [TARGET_ACC_MIN, TARGET_ACC_MAX] band).
+# ---------------------------------------------------------------------------
+EARLY_STOP_PATIENCE = 5  # stop once test_acc has been in-band for this many
+                          # consecutive epochs (avoids wasting GPU time
+                          # running all the way to the memorization collapse)

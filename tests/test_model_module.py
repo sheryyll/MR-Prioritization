@@ -92,3 +92,43 @@ def test_extract_feature_vector():
     assert "avg_weight_magnitude" in features
     assert "weight_std" in features
     assert 0.0 <= features["test_accuracy"] <= 1.0
+
+def test_in_band_checkpoint_tracking():
+    """
+    Verify fit() correctly tracks the best in-band epoch and that
+    save_best_in_band() persists those weights rather than the final
+    epoch's. Uses an artificially wide target band so a tiny 1-epoch CPU
+    run can land inside it deterministically-ish; this test checks the
+    MECHANISM works, not real training dynamics (that requires the full
+    Kaggle GPU run to observe).
+    """
+    from mrrank.model_module import TrainConfig, ModelWrapper
+
+    wrapper = ModelWrapper(device="cpu")
+    train_loader = _tiny_loader(n=64)
+    test_loader = _tiny_loader(n=32)
+
+    # Deliberately wide band so a short run has a real chance of landing
+    # inside it and exercising the tracking/save logic end-to-end.
+    train_cfg = TrainConfig(
+        epochs=3,
+        batch_size=16,
+        device="cpu",
+        target_acc_min=0.0,
+        target_acc_max=1.0,
+        early_stop_patience=1,
+        enable_early_stopping=True,
+    )
+    wrapper.fit(train_loader, test_loader, train_cfg, verbose=False)
+
+    assert wrapper.best_in_band_state is not None
+    assert wrapper.best_in_band_acc is not None
+    assert wrapper.best_in_band_epoch is not None
+
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "best.pth"
+        saved_acc = wrapper.save_best_in_band(path)
+        assert saved_acc == wrapper.best_in_band_acc
+        assert path.exists()
