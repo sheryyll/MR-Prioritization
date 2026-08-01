@@ -13,6 +13,20 @@ Responsibilities (per Phase-1 report, Section 4.3 "Data Module"):
             applies transformations (flip, blur, noise, ...) via OpenCV and
             needs plain pixel arrays, not normalized tensors.
 
+TRAINING AUGMENTATION (added after Phase 3 validation revealed Model A was
+catastrophically sensitive to nearly every MR -- including a plain
+horizontal flip -- because the original training pipeline used ZERO
+augmentation. Standard practice for CIFAR-10 ResNets (used in the original
+ResNet paper's own CIFAR experiments) is RandomCrop(32, padding=4) +
+RandomHorizontalFlip() during training. This teaches the model basic
+positional/flip invariance, which is a prerequisite for the report's MR
+validation step (<5% false-positive rate on a "clean, well-trained
+model") to be meaningful at all. This augmentation is applied ONLY to the
+training loader -- the eval/test pipeline and the MR Engine's
+normalize_image/normalize_batch functions remain deterministic and
+augmentation-free, since introducing randomness there would break Kill
+Matrix reproducibility.
+
 Note on DataLoader num_workers: defaults to 0 in this module. On Windows,
 num_workers > 0 spawns worker subprocesses via multiprocessing, which can
 hang or error when invoked from contexts without a proper
@@ -32,8 +46,32 @@ from mrrank import config
 
 
 def _build_transform() -> transforms.Compose:
-    """Standard ToTensor + per-channel normalize pipeline (report Sec. 4.3)."""
+    """
+    Deterministic ToTensor + normalize pipeline (report Sec. 4.3). Used for
+    the TEST split and for normalize_image/normalize_batch (the MR Engine
+    bridge) -- must stay augmentation-free so Kill Matrix entries remain
+    reproducible.
+    """
     return transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=config.CIFAR10_MEAN, std=config.CIFAR10_STD),
+    ])
+
+
+def _build_train_transform() -> transforms.Compose:
+    """
+    Training-only augmentation pipeline: standard CIFAR-10 ResNet recipe
+    (RandomCrop with reflection padding + RandomHorizontalFlip), followed
+    by the same ToTensor + normalize as the eval pipeline. This is what
+    teaches the model basic invariances -- without it, the model has no
+    pressure to generalize across flips/shifts and becomes extremely
+    brittle to the MR Engine's transformations (observed empirically in
+    Phase 3: 19/20 MRs exceeded the 5% false-positive threshold, including
+    a plain horizontal flip at 16.2%, before this fix was applied).
+    """
+    return transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=config.CIFAR10_MEAN, std=config.CIFAR10_STD),
     ])
@@ -61,26 +99,41 @@ def load_raw_cifar10(train: bool) -> datasets.CIFAR10:
     )
 
 
-def load_normalized_cifar10(train: bool) -> datasets.CIFAR10:
-    """Same dataset, but with ToTensor + Normalize applied for training/inference."""
+def load_normalized_cifar10(train: bool, augment: bool = False) -> datasets.CIFAR10:
+    """
+    Same dataset, but with a transform applied for training/inference.
+
+    augment=True applies the training augmentation pipeline (RandomCrop +
+    RandomHorizontalFlip + normalize) -- only meaningful/intended when
+    train=True. augment=False (default) applies the deterministic
+    eval-only pipeline regardless of the train flag.
+    """
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    transform = _build_train_transform() if augment else _build_transform()
     return datasets.CIFAR10(
         root=str(config.DATA_DIR),
         train=train,
         download=True,
-        transform=_build_transform(),
+        transform=transform,
     )
 
 
 def get_train_loader(batch_size: int = 128, shuffle: bool = True, num_workers: int = 0) -> DataLoader:
-    """DataLoader over the full 50,000-image CIFAR-10 training split, normalized."""
-    dataset = load_normalized_cifar10(train=True)
+    """
+    DataLoader over the full 50,000-image CIFAR-10 training split, WITH
+    augmentation (RandomCrop + RandomHorizontalFlip) applied on top of
+    normalization -- see module docstring for rationale.
+    """
+    dataset = load_normalized_cifar10(train=True, augment=True)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 
 
 def get_test_loader(batch_size: int = 128, shuffle: bool = False, num_workers: int = 0) -> DataLoader:
-    """DataLoader over the full 10,000-image CIFAR-10 test split, normalized."""
-    dataset = load_normalized_cifar10(train=False)
+    """
+    DataLoader over the full 10,000-image CIFAR-10 test split, normalized
+    only -- NO augmentation (test-time evaluation must be deterministic).
+    """
+    dataset = load_normalized_cifar10(train=False, augment=False)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 
 
@@ -168,7 +221,8 @@ def normalize_image(image_uint8: np.ndarray) -> torch.Tensor:
     Convert a single raw uint8 image (H, W, 3) into a normalized CHW float
     tensor ready for model inference. This is the bridge between the MR
     Engine's OpenCV output (Phase 3) and the Model Module's forward pass
-    (Phase 2).
+    (Phase 2). Deliberately uses the deterministic (non-augmented)
+    transform -- augmentation here would corrupt Kill Matrix reproducibility.
     """
     transform = _build_transform()
     return transform(image_uint8)

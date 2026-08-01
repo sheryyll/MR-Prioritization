@@ -12,6 +12,7 @@ import numpy as np
 
 from mrrank import config
 from mrrank import data_module
+import torch
 
 
 def test_eval_subset_size():
@@ -80,3 +81,23 @@ def test_full_dataset_sizes():
     test_dataset = data_module.load_raw_cifar10(train=False)
     assert len(train_dataset) == 50_000
     assert len(test_dataset) == 10_000
+
+def test_train_transform_includes_augmentation():
+    """
+    RandomCrop + RandomHorizontalFlip means the same input image should
+    (almost always) produce a DIFFERENT tensor on repeated calls, unlike
+    the deterministic eval transform.
+
+    Uses a PIL Image as input (not a raw numpy array), matching what the
+    real torchvision.datasets.CIFAR10 pipeline actually passes into the
+    transform internally.
+    """
+    from PIL import Image
+
+    transform = data_module._build_train_transform()
+    img_array = np.random.RandomState(0).randint(0, 256, (32, 32, 3), dtype=np.uint8)
+    img = Image.fromarray(img_array)
+
+    t1 = transform(img)
+    t2 = transform(img)
+    assert not torch.equal(t1, t2)
