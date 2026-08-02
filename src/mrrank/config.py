@@ -120,8 +120,8 @@ MODEL_B_CHECKPOINT = CHECKPOINTS_DIR / "model_B.pth"
 # Accuracy target band (report Section 1.3, Objective 1 + step-by-step doc):
 # "at least 80%" but explicitly NOT much higher -- a near-perfect model is
 # harder to break with mutations, defeating the purpose of Phase 4.
-TARGET_ACC_MIN = 0.80
-TARGET_ACC_MAX = 0.85
+TARGET_ACC_MIN = 0.85
+TARGET_ACC_MAX = 0.90
 
 
 # ---------------------------------------------------------------------------
