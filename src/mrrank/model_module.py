@@ -68,14 +68,19 @@ class TrainConfig:
     weight_decay: float = config.TRAIN_WEIGHT_DECAY
     batch_size: int = config.TRAIN_BATCH_SIZE
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
-    # Limits batches/epoch -- ONLY for fast local smoke tests, never set
-    # this on Kaggle for a real training run.
     max_batches_per_epoch: int | None = None
-    # In-band checkpointing / early stopping (see module docstring)
     target_acc_min: float = config.TARGET_ACC_MIN
     target_acc_max: float = config.TARGET_ACC_MAX
     early_stop_patience: int = config.EARLY_STOP_PATIENCE
     enable_early_stopping: bool = True
+    # NEW: LR schedule length, decoupled from `epochs` (the hard training
+    # cap). Setting this SHORTER than `epochs` means CosineAnnealingLR's
+    # T_max decays faster, so by the time test_acc naturally reaches the
+    # target band, the LR has already substantially decayed -- producing a
+    # more genuinely converged (lower-LR) model at the SAME accuracy level,
+    # rather than an early, still-high-LR, noisy snapshot. Defaults to
+    # `epochs` (old behavior) if not explicitly set.
+    lr_schedule_epochs: int | None = None
 
 
 class ModelWrapper:
@@ -125,8 +130,9 @@ class ModelWrapper:
             momentum=train_cfg.momentum,
             weight_decay=train_cfg.weight_decay,
         )
+        t_max = train_cfg.lr_schedule_epochs or train_cfg.epochs
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=train_cfg.epochs
+            optimizer, T_max=t_max
         )
 
         history = {"train_loss": [], "test_acc": []}

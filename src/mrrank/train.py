@@ -46,6 +46,11 @@ def main():
                          help="Disable early stopping; always train the full "
                               "--epochs count. The in-band checkpoint is still "
                               "tracked and saved unless --smoke-test is set.")
+    parser.add_argument("--lr-schedule-epochs", type=int, default=None,
+                         help="LR schedule length (CosineAnnealingLR T_max), "
+                              "decoupled from --epochs. Set shorter than "
+                              "--epochs to reach a lower-LR, more converged "
+                              "state by the time early stopping triggers.")
     args = parser.parse_args()
 
     seed = config.MODEL_A_SEED if args.which == "A" else config.MODEL_B_SEED
@@ -64,6 +69,7 @@ def main():
         batch_size=args.batch_size,
         max_batches_per_epoch=args.max_batches,
         enable_early_stopping=(not args.smoke_test and not args.no_early_stop),
+        lr_schedule_epochs=args.lr_schedule_epochs,
     )
     print(f"Training Model {args.which} (seed={seed}) on device={train_cfg.device}")
     history = wrapper.fit(train_loader, test_loader, train_cfg)

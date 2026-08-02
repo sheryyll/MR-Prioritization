@@ -263,9 +263,14 @@ def _build_all_mrs(global_seed: int) -> list[MetamorphicRelation]:
                              partial(_jpeg_compress, quality=50)),
         MetamorphicRelation(
             "MR19", "Flip + Noise", "composite", "composite", 0, True,
-            lambda img: _gaussian_noise(_hflip(img), sigma_uint8=0.02 * 255, mr_id="MR19",
+            lambda img: _gaussian_noise(_hflip(img), sigma_uint8=0.010 * 255, mr_id="MR19",
                                          global_seed=global_seed),
         ),
+        # BUGFIX: previously hardcoded sigma=0.02 (MR06's PRE-calibration
+        # value), causing MR19 to silently drift out of sync with MR06's
+        # calibrated 0.010 sigma. Composite MRs should always reference
+        # their constituent MRs' current calibrated values, not a frozen
+        # copy from before calibration.
         MetamorphicRelation(
             "MR20", "Rotate + Blur", "composite", "composite", 0, True,
             lambda img: _blur(_rotate(img, 15), ksize=3),
