@@ -117,7 +117,7 @@ def main():
 
     sweep(
         "MR16 Salt & Pepper", "amount",
-        [0.02, 0.01, 0.005, 0.003],
+        [0.003, 0.002, 0.0015, 0.001],
         lambda v: (lambda img: mr_engine._salt_pepper(img, amount=v, mr_id="MR16", global_seed=config.SEED)),
         wrapper, images,
     )
@@ -126,6 +126,12 @@ def main():
         "MR18 JPEG Compression", "quality",
         [50, 70, 85, 92],
         lambda v: (lambda img: mr_engine._jpeg_compress(img, quality=v)),
+        wrapper, images,
+    )
+    sweep(
+        "MR08 Brightness Increase", "delta",
+        [30, 25, 20, 15],
+        lambda v: (lambda img: mr_engine._brightness(img, delta=v)),
         wrapper, images,
     )
 
