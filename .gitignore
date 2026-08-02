@@ -40,3 +40,5 @@ outputs/logs/
 Thumbs.db
 .vscode/
 .idea/
+
+mailmap.txt
