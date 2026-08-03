@@ -203,39 +203,37 @@ def _build_all_mrs(global_seed: int) -> list[MetamorphicRelation]:
     """Build the canonical list of all 20 MRs, per report Appendix A."""
     return [
         MetamorphicRelation("MR01", "Horizontal Flip", "geometric", "flip", 0, False, _hflip),
-        MetamorphicRelation("MR02", "Vertical Flip", "geometric", "flip", 0, False, _vflip),
+        MetamorphicRelation("MR02", "Vertical Flip", "geometric", "flip", 1, False, _vflip),
         MetamorphicRelation("MR03", "Rotate 15deg", "geometric", "rotate", 15, False,
                              partial(_rotate, angle=15)),
         MetamorphicRelation("MR04", "Rotate 30deg", "geometric", "rotate", 30, False,
                              partial(_rotate, angle=30)),
         MetamorphicRelation("MR05", "Rotate 45deg", "geometric", "rotate", 45, False,
                              partial(_rotate, angle=45)),
-        MetamorphicRelation("MR06", "Gaussian Noise (low)", "noise", "noise", 0.012, False,
-                             partial(_gaussian_noise, sigma_uint8=0.012 * 255, mr_id="MR06",
+        MetamorphicRelation("MR06", "Gaussian Noise (low)", "noise", "noise", 0.009, False,
+                             partial(_gaussian_noise, sigma_uint8=0.009 * 255, mr_id="MR06",
                                      global_seed=global_seed)),
-        # CALIBRATION (binary search vs. LR-decoupled Model A checkpoint):
-        # sigma=0.012 -> 4.80% FP rate.
+        # CALIBRATION (binary search, search_threshold=3.5%, LR-decoupled
+        # Model A): sigma=0.009 -> 3.20% FP rate, measured.
         MetamorphicRelation("MR07", "Gaussian Noise (high)", "noise", "noise", 0.10, False,
                              partial(_gaussian_noise, sigma_uint8=0.10 * 255, mr_id="MR07",
                                      global_seed=global_seed)),
-        # NOT calibrated for <5% -- binary search found sigma=0.0139 passes
-        # (4.60%), but that is BELOW MR06's own calibrated 0.012, which
-        # would collapse the low/high noise tiers into near-duplicates.
-        # Left at Appendix A's original 0.10 to preserve MR06/MR07 as
-        # genuinely distinct noise intensities; documented as a limitation.
-        MetamorphicRelation("MR08", "Brightness Increase", "photometric", "brightness", 30, False,
-                             partial(_brightness, delta=30)),
-        # CALIBRATION: binary search found delta=30 (Appendix A's original
-        # value) itself passes at 4.60% on this checkpoint -- no change needed.
-        MetamorphicRelation("MR09", "Brightness Decrease", "photometric", "brightness", -22, False,
-                             partial(_brightness, delta=-22)),
-        # CALIBRATION: delta=-22 -> 4.80% FP rate (binary search).
-        MetamorphicRelation("MR10", "Contrast Increase", "photometric", "contrast", 1.33, False,
-                             partial(_contrast, factor=1.33)),
-        # CALIBRATION: factor=1.33 -> 4.80% FP rate (binary search).
-        MetamorphicRelation("MR11", "Contrast Decrease", "photometric", "contrast", 0.80, False,
-                             partial(_contrast, factor=0.80)),
-        # CALIBRATION: factor=0.80 -> 4.80% FP rate (binary search).
+        # NOT calibrated -- binary search confirmed even sigma=0.01 (weaker
+        # than MR06's calibrated 0.009) still exceeds threshold at 4.40%.
+        # No passing value exists that keeps MR07 distinct from MR06.
+        # Left at Appendix A's original 0.10; documented limitation.
+        MetamorphicRelation("MR08", "Brightness Increase", "photometric", "brightness", 27, False,
+                             partial(_brightness, delta=27)),
+        # CALIBRATION: delta=27 -> 3.40% FP rate.
+        MetamorphicRelation("MR09", "Brightness Decrease", "photometric", "brightness", -14, False,
+                             partial(_brightness, delta=-14)),
+        # CALIBRATION: delta=-14 -> 3.20% FP rate.
+        MetamorphicRelation("MR10", "Contrast Increase", "photometric", "contrast", 1.2319, False,
+                             partial(_contrast, factor=1.2319)),
+        # CALIBRATION: factor=1.2319 -> 3.40% FP rate.
+        MetamorphicRelation("MR11", "Contrast Decrease", "photometric", "contrast", 0.8473, False,
+                             partial(_contrast, factor=0.8473)),
+        # CALIBRATION: factor=0.8473 -> 3.40% FP rate.
         MetamorphicRelation("MR12", "Gaussian Blur (light)", "noise", "blur", 3, False,
                              partial(_blur, ksize=3)),
         MetamorphicRelation("MR13", "Gaussian Blur (heavy)", "noise", "blur", 7, False,
@@ -251,23 +249,19 @@ def _build_all_mrs(global_seed: int) -> list[MetamorphicRelation]:
                              partial(_center_crop_resize, fraction=0.8)),
         MetamorphicRelation("MR16", "Salt & Pepper Noise", "noise", "salt_pepper", 0.0017, False,
                              partial(_salt_pepper, amount=0.0017, mr_id="MR16", global_seed=global_seed)),
-        # CALIBRATION: amount=0.0017 -> 0.00% FP rate (binary search).
-        MetamorphicRelation("MR17", "Saturation Change", "photometric", "saturation", 1.50, False,
-                             partial(_saturation, factor=1.50)),
-        # CALIBRATION: factor=1.50 (Appendix A's original value) passes at
-        # 3.40% on this checkpoint -- no change needed.
+        # CALIBRATION: amount=0.0017 -> 0.00% FP rate.
+        MetamorphicRelation("MR17", "Saturation Change", "photometric", "saturation", 1.485, False,
+                             partial(_saturation, factor=1.485)),
+        # CALIBRATION: factor=1.485 -> 3.40% FP rate.
         MetamorphicRelation("MR18", "JPEG Compression", "photometric", "jpeg", 50, False,
                              partial(_jpeg_compress, quality=50)),
         MetamorphicRelation(
             "MR19", "Flip + Noise", "composite", "composite", 0, True,
-            lambda img: _gaussian_noise(_hflip(img), sigma_uint8=0.010 * 255, mr_id="MR19",
+            lambda img: _gaussian_noise(_hflip(img), sigma_uint8=0.009 * 255, mr_id="MR19",
                                          global_seed=global_seed),
         ),
-        # BUGFIX: previously hardcoded sigma=0.02 (MR06's PRE-calibration
-        # value), causing MR19 to silently drift out of sync with MR06's
-        # calibrated 0.010 sigma. Composite MRs should always reference
-        # their constituent MRs' current calibrated values, not a frozen
-        # copy from before calibration.
+        # BUGFIX/SYNC: references MR06's current calibrated sigma (0.009),
+        # not a stale copy.
         MetamorphicRelation(
             "MR20", "Rotate + Blur", "composite", "composite", 0, True,
             lambda img: _blur(_rotate(img, 15), ksize=3),

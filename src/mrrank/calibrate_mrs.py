@@ -41,6 +41,7 @@ class CalibrationTarget:
     high: float          # magnitude with HIGHEST violation rate (Appendix A's original, or current failing value)
     build_fn: Callable[[float], Callable]
     threshold: float = 0.05
+    search_threshold: float = 0.035   # binary search targets THIS, giving margin below `threshold`
     precision: float = 0.0005   # stop once search interval is narrower than this
     max_iterations: int = 20
     is_integer: bool = False    # True for kernel sizes etc. that must stay integer/odd
@@ -68,7 +69,7 @@ def binary_search_calibrate(target: CalibrationTarget, wrapper, images) -> dict:
 
     rate_low = measure(target.low)
     trace.append((target.low, rate_low))
-    if rate_low >= target.threshold:
+    if rate_low >= target.search_threshold:
         # Even the mildest candidate fails -- no value in range passes.
         return {
             "best_passing_value": None,
@@ -96,7 +97,7 @@ def binary_search_calibrate(target: CalibrationTarget, wrapper, images) -> dict:
         rate = measure(mid)
         trace.append((mid, rate))
 
-        if rate < target.threshold:
+        if rate < target.search_threshold:
             # mid passes -- it's our new best (closer to `high`, i.e.
             # stronger transform), search the stronger half
             best_passing_value, best_rate = mid, rate
