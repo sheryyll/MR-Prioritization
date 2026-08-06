@@ -134,3 +134,31 @@ TARGET_ACC_MAX = 0.90
 EARLY_STOP_PATIENCE = 5  # stop once test_acc has been in-band for this many
                           # consecutive epochs (avoids wasting GPU time
                           # running all the way to the memorization collapse)
+
+# ---------------------------------------------------------------------------
+# Mutation Engine (Phase 4)
+# ---------------------------------------------------------------------------
+# Layer target mapping resolves the report's "5 layers" (Appendix B) to
+# concrete ResNet-18 sub-modules. conv1/fc deliberately excluded -- both are
+# structural chokepoints with no residual bypass; zeroing either collapses
+# the network to a constant output regardless of input (confirmed by the
+# archived legacy exploration's WZ_conv1 mutant landing at 11.4% accuracy,
+# an effectively dead/equivalent mutant). layer1 is split per-BasicBlock
+# (highest spatial resolution / most generic features -- probed at finer
+# granularity); layer2-4 are each treated as one mutation unit.
+MUTATION_TARGET_LAYERS = ["layer1.0", "layer1.1", "layer2", "layer3", "layer4"]
+
+WEIGHT_FUZZ_LOW_STD = 0.05
+WEIGHT_FUZZ_HIGH_STD = 0.20
+
+LABEL_CORRUPTION_PCTS = [0.10, 0.20]
+LABEL_CORRUPTION_RUNS_PER_PCT = 10
+# Capped well below Model A/B's ~20-50 effective epoch schedule -- label-
+# corruption mutants only need to land in [MUTANT_ACC_MIN, MUTANT_ACC_MAX],
+# not fully converge. Keeps all 20 mutants' total GPU cost to roughly
+# 4-5 hours, instead of the report's own 8-12 hour estimate for
+# full-length (100-epoch) retraining of each variant.
+LABEL_CORRUPTION_EPOCHS = 20
+
+MUTANT_ACC_MIN = 0.40
+MUTANT_ACC_MAX = 0.70

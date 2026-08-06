@@ -38,13 +38,19 @@ def test_determinism(mr_id, sample_image):
     np.testing.assert_array_equal(out1, out2)
 
 
-def test_hflip_vflip_are_actual_flips(sample_image):
+def test_hflip_is_actual_flip(sample_image):
+    """MR01 (Horizontal Flip) is retained by explicit project decision --
+    verify it's still a literal flip."""
     hflip = mr_engine.MR_BY_ID["MR01"].transform(sample_image)
     np.testing.assert_array_equal(hflip, sample_image[:, ::-1, :])
 
-    vflip = mr_engine.MR_BY_ID["MR02"].transform(sample_image)
-    np.testing.assert_array_equal(vflip, sample_image[::-1, :, :])
 
+def test_shear_is_not_identity(sample_image):
+    """MR02 is now Shear (replaced Vertical Flip) -- verify it actually
+    transforms the image rather than being a no-op."""
+    sheared = mr_engine.MR_BY_ID["MR02"].transform(sample_image)
+    assert not np.array_equal(sheared, sample_image)
+    assert sheared.shape == sample_image.shape
 
 def test_brightness_increase_and_decrease(sample_image):
     bright = mr_engine.MR_BY_ID["MR08"].transform(sample_image)
@@ -79,12 +85,22 @@ def test_gaussian_noise_actually_changes_image(sample_image):
     noisy_high = mr_engine.MR_BY_ID["MR07"].transform(sample_image)
     assert not np.array_equal(noisy_low, sample_image)
     assert not np.array_equal(noisy_high, sample_image)
-    # Higher sigma should produce (on average, across many pixels) a larger
-    # absolute deviation from the original than the lower sigma.
-    diff_low = np.abs(noisy_low.astype(int) - sample_image.astype(int)).mean()
-    diff_high = np.abs(noisy_high.astype(int) - sample_image.astype(int)).mean()
-    assert diff_high > diff_low
-
+    # NOTE: MR06/MR07 sigmas were calibrated close together (0.009 vs
+    # 0.015) after MR07's original Appendix A magnitude (0.10) was found
+    # to collide with MR06 during calibration -- with sigmas this close,
+    # per-image random noise draws can occasionally make a single sample's
+    # "low" deviation exceed its "high" deviation by chance. Average over
+    # multiple images instead of asserting on one, for a statistically
+    # robust comparison rather than a fragile single-sample check.
+    rng = np.random.RandomState(2)
+    diffs_low, diffs_high = [], []
+    for _ in range(20):
+        img = rng.randint(0, 256, size=(32, 32, 3), dtype=np.uint8)
+        noisy_low = mr_engine.MR_BY_ID["MR06"].transform(img)
+        noisy_high = mr_engine.MR_BY_ID["MR07"].transform(img)
+        diffs_low.append(np.abs(noisy_low.astype(int) - img.astype(int)).mean())
+        diffs_high.append(np.abs(noisy_high.astype(int) - img.astype(int)).mean())
+    assert np.mean(diffs_high) > np.mean(diffs_low)
 
 def test_crop_resize_returns_original_size(sample_image):
     crop90 = mr_engine.MR_BY_ID["MR14"].transform(sample_image)
