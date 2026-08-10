@@ -288,6 +288,7 @@ class MetamorphicRelation:
         }
 
 
+
 def _build_all_mrs(global_seed: int) -> list[MetamorphicRelation]:
     """Build the canonical list of 20 MRs. See module docstring for the
     full revision log explaining each redesign decision."""

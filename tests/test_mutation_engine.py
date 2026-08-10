@@ -5,7 +5,7 @@ correctness in isolation.
 """
 
 from collections import Counter
-
+from mrrank.mutation_engine import _is_conv_weight
 import torch
 
 from mrrank.mutation_engine import (
@@ -30,15 +30,23 @@ def test_select_layer_params_matches_only_target_prefix():
     assert set(keys) == {"layer1.0.conv1.weight", "layer1.0.bn1.weight"}
 
 
-def test_weight_negate_only_affects_targeted_layer():
+def test_weight_negate_only_affects_targeted_conv_weights():
+    """
+    Negation now targets ONLY convolutional weight tensors (>=2D) within
+    the layer, NOT BatchNorm scale/shift parameters (1D) -- BatchNorm
+    exclusion was added after empirically observing that negating BN
+    parameters at the same operation as conv weights catastrophically
+    destabilized the network (45/60 weight-based mutants collapsed to
+    exactly random-guess accuracy, 0.1000, before this fix).
+    """
     sd = _tiny_state_dict()
     mutated = weight_negate(sd, "layer1.0")
     assert torch.equal(mutated["layer1.0.conv1.weight"], -sd["layer1.0.conv1.weight"])
-    assert torch.equal(mutated["layer1.0.bn1.weight"], -sd["layer1.0.bn1.weight"])
+    # bn1.weight is 1D -- must be UNCHANGED, not negated
+    assert torch.equal(mutated["layer1.0.bn1.weight"], sd["layer1.0.bn1.weight"])
     assert torch.equal(mutated["layer1.1.conv1.weight"], sd["layer1.1.conv1.weight"])
     assert torch.equal(mutated["layer2.conv1.weight"], sd["layer2.conv1.weight"])
     assert torch.equal(mutated["fc.weight"], sd["fc.weight"])
-
 
 def test_weight_zero_only_affects_targeted_layer():
     sd = _tiny_state_dict()
@@ -112,3 +120,28 @@ def test_gpu_required_specs_are_exactly_label_corruption():
     gpu_specs = [s for s in specs if s.requires_gpu]
     assert len(gpu_specs) == 20
     assert all(s.operator.startswith("label_corrupt") for s in gpu_specs)
+
+def test_is_conv_weight_distinguishes_dimensionality():
+    from mrrank.mutation_engine import _is_conv_weight
+    conv_like = torch.ones(4, 4)       # 2D -> conv/linear weight
+    bn_like = torch.ones(4)             # 1D -> BatchNorm scale/shift
+    assert _is_conv_weight("any.key", conv_like) is True
+    assert _is_conv_weight("any.key", bn_like) is False
+
+
+def test_generate_weight_mutant_reproducible_across_calls():
+    """
+    The same mutant_id must produce IDENTICAL mutated weights every time
+    this function is called -- including across separate Python process
+    invocations (not just within one run). Regression test for a bug
+    where Python's built-in hash() was used for seeding, which is
+    randomized per-process by default and broke this guarantee.
+    """
+    from mrrank.mutation_engine import generate_weight_mutant, build_all_mutant_specs
+    sd = _tiny_state_dict()
+    specs = [s for s in build_all_mutant_specs() if s.operator == "weight_fuzz_low"]
+    spec = specs[0]
+    m1 = generate_weight_mutant(spec, sd, global_seed=42)
+    m2 = generate_weight_mutant(spec, sd, global_seed=42)
+    for key in m1:
+        assert torch.equal(m1[key], m2[key])

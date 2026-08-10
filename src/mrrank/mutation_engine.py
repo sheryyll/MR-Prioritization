@@ -28,6 +28,7 @@ legitimate validation signal, not wasted computation.
 from __future__ import annotations
 
 import copy
+import hashlib
 from dataclasses import dataclass
 
 import numpy as np
@@ -57,33 +58,61 @@ def _select_layer_params(state_dict: dict, layer_prefix: str) -> list[str]:
         )
     return keys
 
+def _deterministic_seed(text: str, salt: int) -> int:
+    """
+    Deterministic string->int hash, stable across process runs (unlike
+    Python's built-in hash(), which is randomized per-interpreter-session
+    by default for security reasons -- PYTHONHASHSEED). Required so that
+    the SAME mutant_id always produces the SAME seed, and therefore the
+    SAME mutated weights, across every invocation of this script -- per
+    the project's Reproducibility Constraint.
+    """
+    digest = hashlib.md5(f"{text}_{salt}".encode()).digest()
+    return int.from_bytes(digest[:4], "little") % (2**31)
 
 # ---------------------------------------------------------------------------
 # Mutation operators (operate on a state_dict, return a NEW mutated dict)
 # ---------------------------------------------------------------------------
+def _is_conv_weight(key: str, tensor: torch.Tensor) -> bool:
+    """
+    True for convolutional/linear weight tensors (the actual learned
+    feature-extraction parameters), False for BatchNorm scale/shift
+    parameters and any 1-D tensors. BatchNorm parameters are deliberately
+    excluded from Fuzz/Negate: mutating them at the same scale as conv
+    weights was found to catastrophically destabilize the entire network
+    (empirically: 45/60 mutants collapsed to exactly random-guess accuracy,
+    0.1000, regardless of which layer or fuzz strength was targeted) --
+    BatchNorm's scale/shift operate on normalized activations and are far
+    more sensitive to perturbation than raw convolutional weights.
+    """
+    return tensor.dim() >= 2  # conv/linear weights are >=2D; BN params are 1D
+
+
+
 def weight_fuzz(state_dict: dict, layer_prefix: str, std: float, seed: int) -> dict:
     """
-    Add Gaussian noise (std=`std`) to every FLOATING-POINT tensor in the
-    targeted layer (skips integer buffers like BatchNorm's
-    num_batches_tracked, which aren't meaningful to perturb with noise).
+    Add Gaussian noise (std=`std`) to convolutional weight tensors ONLY
+    in the targeted layer -- BatchNorm scale/shift parameters are
+    excluded (see _is_conv_weight docstring).
     """
     mutated = copy.deepcopy(state_dict)
     keys = _select_layer_params(mutated, layer_prefix)
     generator = torch.Generator().manual_seed(seed)
     for key in keys:
         tensor = mutated[key]
-        if tensor.is_floating_point():
+        if tensor.is_floating_point() and _is_conv_weight(key, tensor):
             noise = torch.randn(tensor.shape, generator=generator) * std
             mutated[key] = tensor + noise
     return mutated
 
 
 def weight_negate(state_dict: dict, layer_prefix: str) -> dict:
-    """Reverse the sign of every floating-point tensor in the targeted layer."""
+    """Reverse the sign of convolutional weight tensors ONLY in the
+    targeted layer -- BatchNorm parameters excluded (see weight_fuzz)."""
     mutated = copy.deepcopy(state_dict)
     keys = _select_layer_params(mutated, layer_prefix)
     for key in keys:
-        if mutated[key].is_floating_point():
+        if mutated[key].is_floating_point() and _is_conv_weight(key, mutated[key]):
             mutated[key] = -mutated[key]
     return mutated
 
@@ -137,12 +166,14 @@ def build_all_mutant_specs() -> list[MutantSpec]:
 
     for layer in layers:
         for run in range(1, 4):
+            std = config.WEIGHT_FUZZ_STD_BY_LAYER[layer]["low"]
             specs.append(MutantSpec(f"WF_low_{layer}_run{run}", "weight_fuzz_low",
-                                     layer, run, config.WEIGHT_FUZZ_LOW_STD, False))
+                                     layer, run, std, False))
     for layer in layers:
         for run in range(1, 4):
+            std = config.WEIGHT_FUZZ_STD_BY_LAYER[layer]["high"]
             specs.append(MutantSpec(f"WF_high_{layer}_run{run}", "weight_fuzz_high",
-                                     layer, run, config.WEIGHT_FUZZ_HIGH_STD, False))
+                                     layer, run, std, False))
     for layer in layers:
         for run in range(1, 4):
             specs.append(MutantSpec(f"WN_{layer}_run{run}", "weight_negate",
@@ -165,14 +196,27 @@ def build_all_mutant_specs() -> list[MutantSpec]:
 # ---------------------------------------------------------------------------
 # Generation + verification (weight-based mutants -- CPU, local)
 # ---------------------------------------------------------------------------
+import hashlib
+
+def _deterministic_seed(text: str, salt: int) -> int:
+    """
+    Deterministic string->int hash, stable across process runs (unlike
+    Python's built-in hash(), which is randomized per-interpreter-session
+    by default for security reasons -- PYTHONHASHSEED). Required so that
+    the SAME mutant_id always produces the SAME seed, and therefore the
+    SAME mutated weights, across every invocation of this script -- per
+    the project's Reproducibility Constraint.
+    """
+    digest = hashlib.md5(f"{text}_{salt}".encode()).digest()
+    return int.from_bytes(digest[:4], "little") % (2**31)
+
 def generate_weight_mutant(spec: MutantSpec, base_state_dict: dict, global_seed: int) -> dict:
     """Apply the mutation described by `spec` to a copy of `base_state_dict`."""
     if spec.operator in ("weight_fuzz_low", "weight_fuzz_high"):
-        # Each run needs a genuinely different seed -- derived deterministically
-        # from the global seed + mutant id, so it's reproducible but distinct
-        # per mutant.
-        run_seed = (global_seed + abs(hash(spec.mutant_id))) % (2**31)
-        return weight_fuzz(base_state_dict, spec.layer, spec.strength, run_seed)
+        run_seed = _deterministic_seed(spec.mutant_id, global_seed)
+        tier = "low" if spec.operator == "weight_fuzz_low" else "high"
+        std = config.WEIGHT_FUZZ_STD_BY_LAYER[spec.layer][tier]
+        return weight_fuzz(base_state_dict, spec.layer, std, run_seed)
     elif spec.operator == "weight_negate":
         return weight_negate(base_state_dict, spec.layer)
     elif spec.operator == "weight_zero":

@@ -47,7 +47,7 @@ def main():
         mutated_state_dict = generate_weight_mutant(spec, base_state_dict, config.SEED)
         acc = verify_mutant_accuracy(mutated_state_dict, images, labels)
         acc_drop = model_a_acc - acc
-        in_band = config.MUTANT_ACC_MIN <= acc <= config.MUTANT_ACC_MAX
+        in_band = bool(config.MUTANT_ACC_MIN <= acc <= config.MUTANT_ACC_MAX)
         if in_band:
             n_in_band += 1
 
@@ -57,6 +57,10 @@ def main():
         path = config.MUTANTS_DIR / f"{spec.mutant_id}.pth"
         torch.save(mutated_state_dict, path)
 
+        is_equivalent = bool(
+            spec.operator in ("weight_negate", "weight_zero")
+            and acc < config.MUTANT_ACC_MIN
+        )
         manifest.append({
             "mutant_id": spec.mutant_id,
             "operator": spec.operator,
@@ -65,13 +69,17 @@ def main():
             "strength": spec.strength,
             "accuracy": acc,
             "accuracy_drop_from_model_a": acc_drop,
-            "in_target_band": in_band,
+            "in_target_band": bool(in_band),
+            "is_equivalent_mutant": is_equivalent,
             "checkpoint_path": str(path),
         })
 
     print("-" * 70)
-    print(f"{n_in_band} of {len(specs)} mutants landed in the target band "
-          f"[{config.MUTANT_ACC_MIN}, {config.MUTANT_ACC_MAX}].")
+    n_equivalent = sum(1 for m in manifest if m["is_equivalent_mutant"])
+    n_out_of_band_stochastic = len(specs) - n_in_band - n_equivalent
+    print(f"\n{n_in_band} in target band, {n_equivalent} equivalent mutants "
+          f"(deterministic operator collapsed the network), "
+          f"{n_out_of_band_stochastic} out-of-band (Fuzz variance).")
     if n_in_band < len(specs):
         print(
             f"NOTE: {len(specs) - n_in_band} mutants fell outside the target "

@@ -148,8 +148,19 @@ EARLY_STOP_PATIENCE = 5  # stop once test_acc has been in-band for this many
 # granularity); layer2-4 are each treated as one mutation unit.
 MUTATION_TARGET_LAYERS = ["layer1.0", "layer1.1", "layer2", "layer3", "layer4"]
 
-WEIGHT_FUZZ_LOW_STD = 0.05
-WEIGHT_FUZZ_HIGH_STD = 0.20
+# Per-layer fuzz std, calibrated via calibrate_mutants.py (accounts for
+# depth-dependent sensitivity -- a fixed std across all layers was found
+# to leave layer1 nearly untouched while collapsing layer2-4 to
+# random-guess accuracy). "low" = milder variant, "high" = std x4 of low,
+# preserving the report's two-intensity-tier design per layer.
+# PLACEHOLDER VALUES -- run calibrate_mutants.py and update before use.
+WEIGHT_FUZZ_STD_BY_LAYER = {
+    "layer1.0": {"low": 0.0667, "high": 0.0721},
+    "layer1.1": {"low": 0.0698, "high": 0.0729},
+    "layer2": {"low": 0.0379, "high": 0.0399},
+    "layer3": {"low": 0.0274, "high": 0.0290},
+    "layer4": {"low": 0.0294, "high": 0.0325},
+}
 
 LABEL_CORRUPTION_PCTS = [0.10, 0.20]
 LABEL_CORRUPTION_RUNS_PER_PCT = 10
