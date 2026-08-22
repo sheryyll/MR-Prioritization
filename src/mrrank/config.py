@@ -162,8 +162,23 @@ WEIGHT_FUZZ_STD_BY_LAYER = {
     "layer4": {"low": 0.0294, "high": 0.0325},
 }
 
-LABEL_CORRUPTION_PCTS = [0.10, 0.20]
+# CALIBRATION (empirical, replacing report's original 10%/20% suggestion):
+# measured that even 50% corruption at 15 epochs only reached 0.7334
+# accuracy (barely above target band), and 10%/20% corruption showed NO
+# meaningful degradation even at 80 epochs (0.889 accuracy, indistinguishable
+# from clean training) -- ResNet-18 with this training recipe (SGD +
+# cosine annealing + RandomCrop/Flip augmentation) is highly robust to
+# label noise at the report's originally suggested levels. Recalibrated via
+# short diagnostic sweeps (15-16 epoch runs at 30/40/50/55% corruption) to
+# find corruption-percentage/epoch-count pairs that reliably land in
+# [MUTANT_ACC_MIN, MUTANT_ACC_MAX] with real margin, not at a knife-edge
+# transition.
+LABEL_CORRUPTION_CONFIG = {
+    "low": {"pct": 0.40, "epochs": 9},
+    "high": {"pct": 0.55, "epochs": 12},
+}
 LABEL_CORRUPTION_RUNS_PER_PCT = 10
+
 # Capped well below Model A/B's ~20-50 effective epoch schedule -- label-
 # corruption mutants only need to land in [MUTANT_ACC_MIN, MUTANT_ACC_MAX],
 # not fully converge. Keeps all 20 mutants' total GPU cost to roughly
