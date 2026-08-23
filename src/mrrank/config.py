@@ -174,7 +174,7 @@ WEIGHT_FUZZ_STD_BY_LAYER = {
 # [MUTANT_ACC_MIN, MUTANT_ACC_MAX] with real margin, not at a knife-edge
 # transition.
 LABEL_CORRUPTION_CONFIG = {
-    "low": {"pct": 0.40, "epochs": 9},
+    "low": {"pct": 0.40, "epochs": 7},
     "high": {"pct": 0.55, "epochs": 12},
 }
 LABEL_CORRUPTION_RUNS_PER_PCT = 10
