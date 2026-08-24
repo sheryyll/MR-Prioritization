@@ -58,6 +58,4 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
 ## Status
 
-Under active development. See project report in docs/ (Phase 1 report) for full methodology,
-including the MR library (Appendix A), mutation operator specifications (Appendix B), and
-evaluation metrics (Appendix C).
+Under active development. Check the repository regularly for the latest project updates, changes, and documentation.
