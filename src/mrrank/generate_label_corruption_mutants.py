@@ -86,6 +86,7 @@ def train_one_label_corruption_mutant(
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=config.LABEL_CORRUPTION_EPOCHS)
     parser.add_argument("--num-workers", type=int, default=2)
     args = parser.parse_args()
 
@@ -94,20 +95,16 @@ def main():
     manifest = []
     n_in_band = 0
 
-    print("Generating 20 label-corruption mutants (calibrated per-tier)...\n")
+    print(f"Generating 20 label-corruption mutants ({args.epochs} epochs each)...\n")
     print(f"{'Mutant ID':<24}{'EvalSubAcc':<12}{'FullTestAcc':<14}{'In [0.40,0.70]'}")
     print("-" * 65)
 
-    for tier_name, tier_cfg in config.LABEL_CORRUPTION_CONFIG.items():
-        pct = tier_cfg["pct"]
-        epochs = tier_cfg["epochs"]
-        pct_label = f"{int(pct*100)}pct"
-
+    for pct, pct_label in [(0.10, "10pct"), (0.20, "20pct")]:
         for run in range(1, config.LABEL_CORRUPTION_RUNS_PER_PCT + 1):
             mutant_id = f"LC_{pct_label}_run{run}"
             state_dict, eval_acc, full_acc = train_one_label_corruption_mutant(
                 corruption_pct=pct, run_index=run,
-                epochs=epochs, num_workers=args.num_workers,
+                epochs=args.epochs, num_workers=args.num_workers,
             )
 
             in_band = bool(config.MUTANT_ACC_MIN <= eval_acc <= config.MUTANT_ACC_MAX)
@@ -125,7 +122,7 @@ def main():
                 "layer": None,
                 "run_index": run,
                 "strength": pct,
-                "epochs": epochs,
+                "epochs": args.epochs,
                 "accuracy": eval_acc,
                 "full_test_set_accuracy": full_acc,
                 "in_target_band": in_band,
