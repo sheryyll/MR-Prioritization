@@ -25,7 +25,7 @@ print("MUTANT_ACC_MIN/MAX:", config.MUTANT_ACC_MIN, config.MUTANT_ACC_MAX)
 !grep -n "generate_label_corruption_mutants" src/mrrank -r
 
 # %% Cell 4 - Generate all 20 label-corruption mutants (~4-5 hours total)
-!python -m mrrank.generate_label_corruption_mutants --epochs 20 --num-workers 2
+!python -m mrrank.generate_label_corruption_mutants --num-workers 2#fixed for accuracy range 40-70
 
 # %% Cell 5 - Package mutants + manifest for download
 !mkdir -p /kaggle/working/label_mutants_export
