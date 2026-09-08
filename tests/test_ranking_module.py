@@ -62,3 +62,19 @@ def test_greedy_rank_diversity_can_beat_higher_fdr():
     # Round 2: LOW_FDR_UNIQUE should beat FILLER despite lower FDR than nothing
     # to compare against here directly, but check it's not last
     assert ranking[1]["mr_id"] in ("LOW_FDR_UNIQUE", "FILLER")
+
+def test_build_feature_table_shape():
+    from mrrank.ranking_module import build_feature_table, load_kill_matrix
+    km, meta = load_kill_matrix()
+    df = build_feature_table(km, meta)
+    assert df.shape[0] == 20 * len(meta["mutant_ids"])
+    assert set(df["label"].unique()) <= {0, 1}
+
+
+def test_meta_classifier_trains_and_predicts():
+    from mrrank.ranking_module import build_feature_table, load_kill_matrix, train_meta_classifier
+    km, meta = load_kill_matrix()
+    df = build_feature_table(km, meta)
+    clf, acc, cols = train_meta_classifier(df)
+    assert 0.0 <= acc <= 1.0
+    assert len(cols) == 8

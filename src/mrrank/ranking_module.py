@@ -100,5 +100,100 @@ def main():
     print(f"\nSaved to {config.OUTPUTS_DIR / 'greedy_ranking.json'}")
 
 
+# --- Phase 7: ML Meta-Classifier ---
+
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+from mrrank import mr_engine
+from mrrank.mutation_engine import build_all_mutant_specs
+
+
+def build_feature_table(kill_matrix, meta) -> pd.DataFrame:
+    """1600-row table: one row per (MR, mutant) pair."""
+    mr_ids = meta["mr_ids"]
+    mutant_ids = meta["mutant_ids"]
+    validation = json.load(open(config.OUTPUTS_DIR / "mr_validation.json"))
+
+    specs_by_id = {s.mutant_id: s for s in build_all_mutant_specs()}
+    op_encoding = {"weight_fuzz_low": 1, "weight_fuzz_high": 1, "weight_negate": 2,
+                   "weight_zero": 3, "label_corrupt_40": 4, "label_corrupt_55": 4}
+    layer_encoding = {"layer1.0": 1, "layer1.1": 1, "layer2": 2, "layer3": 3, "layer4": 4, None: 0}
+
+    rows = []
+    for i, mr_id in enumerate(mr_ids):
+        mr = mr_engine.MR_BY_ID[mr_id]
+        mr_meta = mr.get_metadata()
+        for j, mutant_id in enumerate(mutant_ids):
+            spec = specs_by_id.get(mutant_id)
+            operator = spec.operator if spec else "label_corrupt"
+            layer = spec.layer if spec else None
+            strength = spec.strength if spec else 0.0
+
+            rows.append({
+                "mr_id": mr_id, "mutant_id": mutant_id,
+                "mr_type_encoded": mr_meta["mr_type_encoded"],
+                "mr_magnitude": mr_meta["magnitude"],
+                "mr_cost_ms": validation[mr_id]["cost_ms"],
+                "mr_is_composite": mr_meta["is_composite"],
+                "mr_category_encoded": mr_meta["category_encoded"],
+                "mutation_type_encoded": op_encoding.get(operator, 0),
+                "mutation_layer_encoded": layer_encoding.get(layer, 0),
+                "mutation_strength": strength or 0.0,
+                "label": int(kill_matrix[i, j]),
+            })
+    return pd.DataFrame(rows)
+
+
+def train_meta_classifier(df: pd.DataFrame, seed: int = config.SEED):
+    feature_cols = ["mr_type_encoded", "mr_magnitude", "mr_cost_ms", "mr_is_composite",
+                     "mr_category_encoded", "mutation_type_encoded",
+                     "mutation_layer_encoded", "mutation_strength"]
+    X, y = df[feature_cols], df["label"]
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=seed, stratify=y
+    )
+    clf = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=seed)
+    clf.fit(X_train, y_train)
+    test_acc = accuracy_score(y_test, clf.predict(X_test))
+    return clf, test_acc, feature_cols
+
+
+def predict_ranking_for_model(clf, feature_cols, model_features: dict) -> list[dict]:
+    """Rank all 20 MRs for a new model using only its extracted feature vector."""
+    validation = json.load(open(config.OUTPUTS_DIR / "mr_validation.json"))
+    rows = []
+    for mr in mr_engine.ALL_MRS:
+        meta = mr.get_metadata()
+        op_ph = {"mr_type_encoded": meta["mr_type_encoded"], "mr_magnitude": meta["magnitude"],
+                  "mr_cost_ms": validation[mr.id]["cost_ms"], "mr_is_composite": meta["is_composite"],
+                  "mr_category_encoded": meta["category_encoded"],
+                  "mutation_type_encoded": 0, "mutation_layer_encoded": 0, "mutation_strength": 0.0}
+        rows.append(op_ph)
+    X = pd.DataFrame(rows)[feature_cols]
+    probs = clf.predict_proba(X)[:, 1]
+    ranked = sorted(zip([m.id for m in mr_engine.ALL_MRS], probs), key=lambda x: -x[1])
+    return [{"rank": i + 1, "mr_id": mr_id, "predicted_kill_prob": float(p)}
+            for i, (mr_id, p) in enumerate(ranked)]
+
+
+def main_meta_classifier():
+    km, meta = load_kill_matrix()
+    df = build_feature_table(km, meta)
+    print(f"Feature table: {df.shape}")
+
+    clf, test_acc, feature_cols = train_meta_classifier(df)
+    print(f"Held-out test accuracy: {test_acc:.4f} (target: >0.70)")
+
+    df.to_csv(config.OUTPUTS_DIR / "meta_classifier_features.csv", index=False)
+    import joblib
+    joblib.dump({"clf": clf, "feature_cols": feature_cols}, config.OUTPUTS_DIR / "meta_classifier.joblib")
+    print(f"Saved model + features to {config.OUTPUTS_DIR}")
+
+
 if __name__ == "__main__":
     main()
+    main_meta_classifier()

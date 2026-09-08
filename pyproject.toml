@@ -17,6 +17,7 @@ dependencies = [
     "matplotlib>=3.7",
     "seaborn>=0.12",
     "pandas>=2.0",
+    "joblib",
     "tqdm",
 ]
 
