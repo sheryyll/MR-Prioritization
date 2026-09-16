@@ -72,9 +72,31 @@ def test_build_feature_table_shape():
 
 
 def test_meta_classifier_trains_and_predicts():
-    from mrrank.ranking_module import build_feature_table, load_kill_matrix, train_meta_classifier
+    from mrrank.ranking_module import (
+        build_feature_table,
+        load_kill_matrix,
+        train_meta_classifier,
+    )
+
     km, meta = load_kill_matrix()
     df = build_feature_table(km, meta)
+
     clf, acc, cols = train_meta_classifier(df)
+
     assert 0.0 <= acc <= 1.0
-    assert len(cols) == 8
+
+    expected_cols = [
+        "mr_type_encoded",
+        "mr_magnitude",
+        "mr_cost_ms",
+        "mr_is_composite",
+        "mr_category_encoded",
+        "mutation_type_encoded",
+        "mutation_layer_encoded",
+        "mutation_strength",
+        "model_avg_weight_magnitude",
+        "model_weight_std",
+        "model_test_accuracy",
+    ]
+
+    assert cols == expected_cols

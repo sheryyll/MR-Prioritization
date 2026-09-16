@@ -4,9 +4,8 @@ Ranking Module: Greedy MR prioritization (report Eq 4.1-4.4).
 Priority(MR_i) = alpha*FDR(MR_i) + beta*(1-NormCost(MR_i)) + gamma*Diversity(MR_i, S)
 alpha=0.5, beta=0.2, gamma=0.3
 """
-
 from __future__ import annotations
-
+from mrrank.model_module import ModelWrapper
 import json
 
 import numpy as np
@@ -113,15 +112,22 @@ from mrrank.mutation_engine import build_all_mutant_specs
 
 
 def build_feature_table(kill_matrix, meta) -> pd.DataFrame:
-    """1600-row table: one row per (MR, mutant) pair."""
+    validation = json.load(open(config.OUTPUTS_DIR / "mr_validation.json"))
     mr_ids = meta["mr_ids"]
     mutant_ids = meta["mutant_ids"]
-    validation = json.load(open(config.OUTPUTS_DIR / "mr_validation.json"))
 
     specs_by_id = {s.mutant_id: s for s in build_all_mutant_specs()}
     op_encoding = {"weight_fuzz_low": 1, "weight_fuzz_high": 1, "weight_negate": 2,
                    "weight_zero": 3, "label_corrupt_40": 4, "label_corrupt_55": 4}
     layer_encoding = {"layer1.0": 1, "layer1.1": 1, "layer2": 2, "layer3": 3, "layer4": 4, None: 0}
+
+    # Model A's own feature vector -- constant across all 1600 rows, but
+    # required so the classifier learns to CONDITION on model identity,
+    # not just MR type. Without this, predictions can't differ for Model B.
+    from mrrank import data_module
+    wrapper_a = ModelWrapper.from_checkpoint(config.MODEL_A_CHECKPOINT, device="cpu")
+    test_loader = data_module.get_test_loader(batch_size=128, num_workers=0)
+    model_a_features = wrapper_a.extract_feature_vector(test_loader=test_loader)
 
     rows = []
     for i, mr_id in enumerate(mr_ids):
@@ -143,6 +149,9 @@ def build_feature_table(kill_matrix, meta) -> pd.DataFrame:
                 "mutation_type_encoded": op_encoding.get(operator, 0),
                 "mutation_layer_encoded": layer_encoding.get(layer, 0),
                 "mutation_strength": strength or 0.0,
+                "model_avg_weight_magnitude": model_a_features["avg_weight_magnitude"],
+                "model_weight_std": model_a_features["weight_std"],
+                "model_test_accuracy": model_a_features["test_accuracy"],
                 "label": int(kill_matrix[i, j]),
             })
     return pd.DataFrame(rows)
@@ -151,7 +160,8 @@ def build_feature_table(kill_matrix, meta) -> pd.DataFrame:
 def train_meta_classifier(df: pd.DataFrame, seed: int = config.SEED):
     feature_cols = ["mr_type_encoded", "mr_magnitude", "mr_cost_ms", "mr_is_composite",
                      "mr_category_encoded", "mutation_type_encoded",
-                     "mutation_layer_encoded", "mutation_strength"]
+                     "mutation_layer_encoded", "mutation_strength",
+                     "model_avg_weight_magnitude", "model_weight_std", "model_test_accuracy"]
     X, y = df[feature_cols], df["label"]
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=seed, stratify=y
@@ -163,16 +173,19 @@ def train_meta_classifier(df: pd.DataFrame, seed: int = config.SEED):
 
 
 def predict_ranking_for_model(clf, feature_cols, model_features: dict) -> list[dict]:
-    """Rank all 20 MRs for a new model using only its extracted feature vector."""
     validation = json.load(open(config.OUTPUTS_DIR / "mr_validation.json"))
     rows = []
     for mr in mr_engine.ALL_MRS:
         meta = mr.get_metadata()
-        op_ph = {"mr_type_encoded": meta["mr_type_encoded"], "mr_magnitude": meta["magnitude"],
-                  "mr_cost_ms": validation[mr.id]["cost_ms"], "mr_is_composite": meta["is_composite"],
-                  "mr_category_encoded": meta["category_encoded"],
-                  "mutation_type_encoded": 0, "mutation_layer_encoded": 0, "mutation_strength": 0.0}
-        rows.append(op_ph)
+        rows.append({
+            "mr_type_encoded": meta["mr_type_encoded"], "mr_magnitude": meta["magnitude"],
+            "mr_cost_ms": validation[mr.id]["cost_ms"], "mr_is_composite": meta["is_composite"],
+            "mr_category_encoded": meta["category_encoded"],
+            "mutation_type_encoded": 0, "mutation_layer_encoded": 0, "mutation_strength": 0.0,
+            "model_avg_weight_magnitude": model_features["avg_weight_magnitude"],
+            "model_weight_std": model_features["weight_std"],
+            "model_test_accuracy": model_features["test_accuracy"],
+        })
     X = pd.DataFrame(rows)[feature_cols]
     probs = clf.predict_proba(X)[:, 1]
     ranked = sorted(zip([m.id for m in mr_engine.ALL_MRS], probs), key=lambda x: -x[1])
