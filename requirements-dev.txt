@@ -1,0 +1,18 @@
+# Script-only / development dependencies.
+# These run LOCALLY only — never on Streamlit Community Cloud.
+# Kept separate from requirements-app.txt so the deployed app stays lightweight.
+
+# PyTorch (for scripts/compute_fingerprint.py and the full training pipeline)
+torch>=2.0
+torchvision>=0.15
+
+# OpenCV (for MR transforms)
+opencv-python==5.0.0.93
+
+# Other dev/research dependencies
+tqdm==4.70.0
+seaborn==0.13.2
+pillow==12.2.0
+
+# Testing
+pytest>=7.4
