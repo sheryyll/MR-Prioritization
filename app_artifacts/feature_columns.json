@@ -1,0 +1,13 @@
+[
+  "mr_type_encoded",
+  "mr_magnitude",
+  "mr_cost_ms",
+  "mr_is_composite",
+  "mr_category_encoded",
+  "mutation_type_encoded",
+  "mutation_layer_encoded",
+  "mutation_strength",
+  "model_avg_weight_magnitude",
+  "model_weight_std",
+  "model_test_accuracy"
+]

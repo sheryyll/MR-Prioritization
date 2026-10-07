@@ -1,0 +1,21 @@
+mr_id,name,category,mr_type,magnitude,is_composite,violation_rate_model_a,passes_threshold
+MR01,Horizontal Flip,geometric,flip,0.0,False,0.104,False
+MR02,Shear (mild),geometric,shear,0.04,False,0.072,False
+MR03,Rotate (fine),geometric,rotate,1.0,False,0.044,True
+MR04,Translate Horizontal,geometric,translation,1.0,False,0.052,False
+MR05,Translate Vertical,geometric,translation,1.0,False,0.036,True
+MR06,Gaussian Noise (low),noise,noise,0.009,False,0.04,True
+MR07,Gaussian Noise (high),noise,noise,0.009,False,0.038,True
+MR08,Brightness Increase,photometric,brightness,10.0,False,0.018,True
+MR09,Brightness Decrease,photometric,brightness,-10.0,False,0.016,True
+MR10,Contrast Increase,photometric,contrast,1.1,False,0.012,True
+MR11,Contrast Decrease,photometric,contrast,0.9,False,0.028,True
+MR12,Unsharp Mask,noise,sharpen,0.5,False,0.038,True
+MR13,Posterize,photometric,posterize,5.0,False,0.032,True
+MR14,Translate Diagonal,geometric,translation,1.0,False,0.058,False
+MR15,Scale Down (zoom-out),geometric,scale,0.9,False,0.088,False
+MR16,Salt & Pepper Noise,noise,salt_pepper,0.0017,False,0.0,True
+MR17,Saturation Change,photometric,saturation,1.1,False,0.01,True
+MR18,JPEG Compression,photometric,jpeg,98.0,False,0.042,True
+MR19,Flip + Noise (reduced),composite,composite,0.0,True,0.104,False
+MR20,Contrast + Saturation Jitter,composite,composite,0.0,True,0.012,True

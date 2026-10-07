@@ -1,0 +1,22 @@
+# Streamlit Community Cloud configuration
+# Docs: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-configuration
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "dark"
+primaryColor = "#818cf8"
+backgroundColor = "#0f1117"
+secondaryBackgroundColor = "#1a1f2e"
+textColor = "#e0e7ff"
+font = "sans serif"
+
+[runner]
+# Suppress torch-related deprecation warnings that leak from dependencies
+magicEnabled = true

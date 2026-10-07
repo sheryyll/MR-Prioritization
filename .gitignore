@@ -1,4 +1,4 @@
-﻿# ==== Legacy (archived, not part of the current implementation) ====
+# ==== Legacy (archived, not part of the current implementation) ====
 legacy/
 
 # ==== Python ====
@@ -35,6 +35,14 @@ outputs/*.json
 outputs/*.png
 outputs/logs/
 
+# ==== Streamlit secrets (real file; example is committed) ====
+.streamlit/secrets.toml
+
+# ==== Environment / secrets ====
+.env
+.env.*
+secrets.toml
+
 # ==== OS / editor cruft ====
 .DS_Store
 Thumbs.db
@@ -42,3 +50,7 @@ Thumbs.db
 .idea/
 
 mailmap.txt
+
+# NOTE: app_artifacts/ is intentionally TRACKED (not ignored).
+# It contains only small CSVs/JSONs + the meta-classifier.joblib (~140 KB)
+# needed by the Streamlit app. No datasets, checkpoints, or mutant files.

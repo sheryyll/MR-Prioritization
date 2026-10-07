@@ -1,0 +1,11 @@
+# App dependencies only (deployed on Streamlit Community Cloud).
+# scikit-learn version MUST match the version used to train the pickled meta-classifier
+# to avoid unpickling errors (trained with scikit-learn==1.9.0).
+streamlit>=1.40.0
+pandas==3.0.5
+numpy==2.4.4
+scikit-learn==1.9.0
+joblib>=1.3.0
+matplotlib==3.11.1
+plotly>=5.24.0
+scipy==1.18.0
