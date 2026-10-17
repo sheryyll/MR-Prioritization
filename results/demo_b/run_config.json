@@ -1,0 +1,106 @@
+{
+  "mode": "approximate",
+  "n_images": 100,
+  "n_mutants": 20,
+  "seed": 42,
+  "kill_threshold": 0.05,
+  "clean_rate_limit": 0.05,
+  "specs": [
+    {
+      "id": "U01",
+      "name": "Rotate 1.2 degrees",
+      "type": "rotate",
+      "params": {
+        "angle": 1.2
+      }
+    },
+    {
+      "id": "U02",
+      "name": "Brighten +15",
+      "type": "brightness",
+      "params": {
+        "delta": 15
+      }
+    },
+    {
+      "id": "U03",
+      "name": "Mild contrast then JPEG",
+      "type": "composite",
+      "steps": [
+        {
+          "type": "contrast",
+          "params": {
+            "factor": 1.03
+          }
+        },
+        {
+          "type": "jpeg",
+          "params": {
+            "quality": 98
+          }
+        }
+      ]
+    }
+  ],
+  "clean_violation_rates": {
+    "U01": 0.03,
+    "U02": 0.02,
+    "U03": 0.03
+  },
+  "gate_violation_rates": {
+    "U01": 0.052,
+    "U02": 0.026,
+    "U03": 0.04
+  },
+  "rejected": {
+    "U01": 0.052
+  },
+  "mutant_ids": [
+    "LC_40pct_run1",
+    "LC_40pct_run4",
+    "LC_40pct_run8",
+    "LC_55pct_run2",
+    "LC_55pct_run7",
+    "WF_high_layer1.0_run2",
+    "WF_high_layer1.1_run3",
+    "WF_high_layer3_run1",
+    "WF_high_layer4_run2",
+    "WF_low_layer1.0_run3",
+    "WF_low_layer2_run2",
+    "WF_low_layer3_run3",
+    "WN_layer1.0_run1",
+    "WN_layer1.1_run2",
+    "WN_layer2_run3",
+    "WN_layer4_run1",
+    "WZ_layer1.0_run3",
+    "WZ_layer2_run1",
+    "WZ_layer3_run2",
+    "WZ_layer4_run3"
+  ],
+  "cost_source": "mr_validation.json (canonical) + calibrated timing (user MRs)",
+  "cost_ms": {
+    "MR01": 2742.7451610565186,
+    "MR02": 2728.3802032470703,
+    "MR03": 2771.460771560669,
+    "MR04": 2754.742383956909,
+    "MR05": 2799.062490463257,
+    "MR06": 2942.028284072876,
+    "MR07": 2914.369583129883,
+    "MR08": 2752.4306774139404,
+    "MR09": 2705.7034969329834,
+    "MR10": 2759.7858905792236,
+    "MR11": 2721.637725830078,
+    "MR12": 2786.576747894287,
+    "MR13": 2718.426465988159,
+    "MR14": 2735.621213912964,
+    "MR15": 2746.814012527466,
+    "MR16": 2839.3876552581787,
+    "MR17": 2737.924814224243,
+    "MR18": 2719.400405883789,
+    "MR19": 2904.9623012542725,
+    "MR20": 2724.175453186035,
+    "U02": 2631.1614304444715,
+    "U03": 2701.4870949134374
+  },
+  "elapsed_sec": 39.8
+}
