@@ -35,7 +35,7 @@ FAST_MUTANTS = 20
 FAST_IMAGES = 100
 SEC_PER_PAIR_500 = 3.3       # rough: measured on the dev laptop at 500 images
 MAX_SPEC_FILE_BYTES = 1_000_000
-COST_REPEATS = 15            # timings per MR; the MINIMUM is used (load noise is one-sided)
+COST_REPEATS = 5            # timings per MR; the MINIMUM is used (load noise is one-sided)
 CALIBRATION_MRS = 5         # canonical MRs re-timed to scale user-MR costs
 
 
@@ -85,6 +85,16 @@ def subset_columns(base: dict, mutant_ids: list) -> dict:
         "mutant_ids": list(mutant_ids),
         "fdr_per_mr": {mid: float(km[i].mean()) for i, mid in enumerate(base["mr_ids"])},
     }
+
+
+def interleaved_min(measure, mrs, repeats: int) -> dict:
+    """Minimum timing per MR, measured round-robin (all MRs, then again, ...)
+    so CPU drift hits every MR equally instead of whichever is timed last."""
+    best = {m.id: float("inf") for m in mrs}
+    for _ in range(repeats):
+        for m in mrs:
+            best[m.id] = min(best[m.id], measure(m))
+    return best
 
 
 def calibrated_costs(stored: dict, ref_now: dict, new_now: dict) -> dict:
@@ -210,13 +220,12 @@ def run_pipeline(mrs, specs, out_dir: Path, n_mutants, n_images, keep_invalid: b
     validation = json.loads((config.OUTPUTS_DIR / "mr_validation.json").read_text(encoding="utf-8"))
     stored = {mid: float(validation[mid]["cost_ms"]) for mid in base["mr_ids"]}
 
-    def timed(mr):
-        return min(mr_engine.measure_mr_cost_ms(mr, wrapper, images) for _ in range(COST_REPEATS))
-
     refs = pick_evenly(list(mr_engine.ALL_MRS), CALIBRATION_MRS)
+    times = interleaved_min(lambda mr: mr_engine.measure_mr_cost_ms(mr, wrapper, images),
+                            refs + accepted, COST_REPEATS)
     cost_ms = calibrated_costs(stored,
-                               {mr.id: timed(mr) for mr in refs},
-                               {mr.id: timed(mr) for mr in accepted})
+                               {mr.id: times[mr.id] for mr in refs},
+                               {mr.id: times[mr.id] for mr in accepted})
     record["cost_source"] = "mr_validation.json (canonical) + calibrated timing (user MRs)"
 
     ranking = rank_merged(merged, cost_ms, {m.id for m in accepted})

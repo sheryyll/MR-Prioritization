@@ -74,3 +74,17 @@ def test_calibrated_costs_rescales_user_only():
     assert out == {"A": 1.0, "B": 2.0, "U": 3.0}
     with pytest.raises(ValueError):
         run.calibrated_costs({"A": 1.0}, {}, {"U": 1.0})
+
+
+def test_interleaved_min_is_round_robin():
+    class M:
+        def __init__(self, i): self.id = i
+    calls = []
+
+    def measure(m):
+        calls.append(m.id)
+        return float(len(calls))          # 1, 2, 3, ... increasing
+
+    best = run.interleaved_min(measure, [M("A"), M("B")], 3)
+    assert calls == ["A", "B", "A", "B", "A", "B"]
+    assert best == {"A": 1.0, "B": 2.0}
