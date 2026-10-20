@@ -88,3 +88,38 @@ def test_interleaved_min_is_round_robin():
     best = run.interleaved_min(measure, [M("A"), M("B")], 3)
     assert calls == ["A", "B", "A", "B", "A", "B"]
     assert best == {"A": 1.0, "B": 2.0}
+
+
+def _merged3():
+    km = np.array([[1, 1, 1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0, 1, 1], [0, 0, 0, 0, 0, 0, 0, 0]], bool)
+    return {"kill_matrix": km, "mr_ids": ["A", "B", "C"], "mutant_ids": list("abcdefgh"),
+            "clean_violation_rates": {"A": 0.01, "B": 0.02, "C": 0.03},
+            "fdr_per_mr": {m: float(km[i].mean()) for i, m in enumerate("ABC")}}
+
+
+def test_rank_stability_deterministic_and_dominant_mr_is_stable():
+    cost = {"A": 1.0, "B": 1.0, "C": 1.0}
+    s1 = run.rank_stability(_merged3(), cost, trials=40, seed=1)
+    s2 = run.rank_stability(_merged3(), cost, trials=40, seed=1)
+    assert s1 == s2
+    assert s1["A"]["rank_p10"] == s1["A"]["rank_p90"] == 1 and s1["A"]["top5_prob"] == 1.0
+    assert all(1 <= v["rank_p10"] <= v["rank_p90"] <= 3 for v in s1.values())
+
+
+def test_rerank_roundtrip(tmp_path):
+    import csv as _csv
+    m = _merged3()
+    with open(tmp_path / "kill_matrix.csv", "w", newline="") as f:
+        w = _csv.writer(f)
+        w.writerow(["mr_id"] + m["mutant_ids"])
+        for i, mid in enumerate(m["mr_ids"]):
+            w.writerow([mid] + m["kill_matrix"][i].astype(int).tolist())
+    ranking = [{"mr_id": mid, "source": "user" if mid == "C" else "canonical",
+                "cost_ms": 1000.0 + i, "clean_violation_rate": 0.01} for i, mid in enumerate("ABC")]
+    (tmp_path / "ranking.json").write_text(json.dumps(ranking))
+    merged, cost, users = run.load_run(tmp_path)
+    assert merged["mr_ids"] == ["A", "B", "C"] and users == {"C"} and cost["B"] == 1001.0
+    assert run.rerank(tmp_path) == 0
+    out = json.loads((tmp_path / "ranking.json").read_text())
+    assert {"rank_p10", "rank_p90", "top5_prob"} <= set(out[0])
+    assert (tmp_path / "ranking.csv").exists()

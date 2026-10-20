@@ -24,15 +24,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import mr_tab  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
 ARTIFACTS = Path(__file__).resolve().parent / "app_artifacts"
 
-# ---------------------------------------------------------------------------
-# Page config
-# ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="MR-Rank | Metamorphic Relation Prioritization",
     page_icon="🧪",
@@ -40,9 +35,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ---------------------------------------------------------------------------
-# Custom CSS
-# ---------------------------------------------------------------------------
 st.markdown("""
 <style>
     /* Refined typography & spacing */
@@ -117,10 +109,6 @@ with col_badge:
         unsafe_allow_html=True,
     )
 
-# ---------------------------------------------------------------------------
-# Data loaders (cached)
-# ---------------------------------------------------------------------------
-
 @st.cache_data(show_spinner=False)
 def load_greedy() -> pd.DataFrame:
     return pd.read_csv(ARTIFACTS / "greedy_ranking.csv")
@@ -163,15 +151,17 @@ def load_classifier():
     return bundle["clf"]
 
 
-# ---------------------------------------------------------------------------
-# Tabs
-# ---------------------------------------------------------------------------
-tab_rank, tab_eval, tab_infer, tab_about = st.tabs([
-    "📊 Rankings",
-    "📈 Evaluation",
-    "🔮 Rank a new model",
-    "ℹ️ About",
+tab_rank, tab_eval, tab_infer, tab_run, tab_about = st.tabs([
+    "Rankings",
+    "Evaluation",
+    "Rank a new model",
+    "Run my MRs",
+    "About",
 ])
+
+# ======================================================== Tab 4: Run my MRs
+with tab_run:
+    mr_tab.render()
 
 # ============================================================ Tab 1: Rankings
 with tab_rank:
