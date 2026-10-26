@@ -86,3 +86,12 @@ def test_run_cli_streams_and_returns_output():
     ph = Ph()
     rc, log = mr_tab._run_cli([sys.executable, "-u", "-c", "print('a'); print('b')"], None, ph)
     assert rc == 0 and log.splitlines() == ["a", "b"] and ph.seen
+
+
+def test_count_auto_and_estimate_adds_calibration_time():
+    import sys
+    sys.path.insert(0, str(ROOT))
+    import mr_tab
+    specs = [{"id": "U1", "type": "rotate", "params": {"angle": "auto"}}, {"id": "U2", "type": "flip"}]
+    assert mr_tab.count_auto(specs) == 1
+    assert mr_tab.estimate_seconds(2, True, 1) > mr_tab.estimate_seconds(2, True, 0) + 20

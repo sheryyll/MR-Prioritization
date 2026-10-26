@@ -37,23 +37,7 @@ from torch.utils.data import DataLoader
 from torchvision.models import resnet18
 
 from mrrank import config
-
-
 def build_resnet18_cifar(num_classes: int = 10) -> nn.Module:
-    """
-    Build a ResNet-18 adapted for CIFAR-10's 32x32 input.
-
-    torchvision's stock resnet18 targets ImageNet's 224x224 images: its
-    stem is a 7x7 stride-2 conv followed by a stride-2 max-pool, which
-    would shrink a 32x32 CIFAR image to 4x4 before the first residual
-    block even runs -- destroying almost all spatial detail.
-
-    Standard practice for CIFAR-scale ResNets (and required for the
-    architecture to be meaningful at 32x32 at all) is to:
-      - replace the 7x7 stride-2 stem conv with a 3x3 stride-1 conv
-      - remove the initial max-pool layer entirely (nn.Identity)
-    This preserves full 32x32 resolution into the first residual block.
-    """
     model = resnet18(weights=None, num_classes=num_classes)
     model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
     model.maxpool = nn.Identity()

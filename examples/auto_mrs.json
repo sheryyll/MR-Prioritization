@@ -1,0 +1,6 @@
+[
+  {"id": "U01", "name": "Rotate (auto)", "type": "rotate", "params": {"angle": "auto"}},
+  {"id": "U02", "name": "Translate (auto)", "type": "translation", "params": {"dx": "auto", "dy": 0}},
+  {"id": "U03", "name": "Noise (auto)", "type": "noise", "params": {"sigma": "auto"}},
+  {"id": "U04", "name": "Brightness (auto)", "type": "brightness", "params": {"delta": "auto"}}
+]

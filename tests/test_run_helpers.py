@@ -123,3 +123,17 @@ def test_rerank_roundtrip(tmp_path):
     out = json.loads((tmp_path / "ranking.json").read_text())
     assert {"rank_p10", "rank_p90", "top5_prob"} <= set(out[0])
     assert (tmp_path / "ranking.csv").exists()
+
+
+def test_build_scope_mine_vs_all():
+    base = {"kill_matrix": np.array([[1, 0, 1], [0, 1, 0]], bool), "mr_ids": ["M1", "M2"],
+            "mutant_ids": ["a", "b", "c"], "clean_violation_rates": {"M1": 0.0, "M2": 0.0},
+            "fdr_per_mr": {"M1": 2 / 3, "M2": 1 / 3}}
+    extra = {"kill_matrix": np.array([[1, 1, 1]], bool), "mr_ids": ["U1"], "mutant_ids": ["a", "b", "c"],
+             "clean_violation_rates": {"U1": 0.02}, "fdr_per_mr": {"U1": 1.0}, "mutant_violation_rates": {}}
+    mine = run.build_scope(base, extra, "mine")
+    assert mine["mr_ids"] == ["U1"] and "mutant_violation_rates" not in mine
+    both = run.build_scope(base, extra, "all")
+    assert both["mr_ids"] == ["M1", "M2", "U1"]
+    with pytest.raises(ValueError):
+        run.build_scope(base, extra, "nope")

@@ -34,6 +34,7 @@ if SRC.exists() and str(SRC) not in sys.path:
 
 try:
     from mrrank.mr_spec import MAX_COMPOSITE_STEPS, MRSpecError, build_mrs_from_specs, _TYPES
+    from mrrank.mr_autocal import SEARCH as AUTO_SEARCH, prepare as prepare_specs
     SPEC_IMPORT_ERROR = None
 except Exception as exc:  # e.g. OpenCV missing in this deployment
     SPEC_IMPORT_ERROR = exc
@@ -41,6 +42,7 @@ except Exception as exc:  # e.g. OpenCV missing in this deployment
 EXAMPLE_RANKING = ROOT / "app_artifacts" / "example_user_ranking.csv"
 EXAMPLE_SPECS = [
     {"id": "U02", "name": "Brighten +15", "type": "brightness", "params": {"delta": 15}},
+    {"id": "U01", "name": "Rotate (auto magnitude)", "type": "rotate", "params": {"angle": "auto"}},
     {"id": "U03", "name": "Mild contrast then JPEG", "type": "composite",
      "steps": [{"type": "contrast", "params": {"factor": 1.03}},
                {"type": "jpeg", "params": {"quality": 98}}]},
@@ -91,7 +93,12 @@ def parse_specs(text: str) -> list:
     return data
 
 
-def estimate_seconds(n_mrs: int, fast: bool) -> float:
+def count_auto(specs) -> int:
+    return sum(1 for s in (specs or []) if any(isinstance(v, str) and v.strip().lower() == "auto"
+                                                for v in (s.get("params") or {}).values()))
+
+
+def estimate_seconds(n_mrs: int, fast: bool, n_auto: int = 0) -> float:
     """Upper-bound estimate: assumes every MR passes the clean-model check."""
     n_mut, n_img = (20, 100) if fast else (80, 500)
     scale = n_img / 500
@@ -99,7 +106,8 @@ def estimate_seconds(n_mrs: int, fast: bool) -> float:
     gate = n_mrs * SEC_PER_PAIR_500                                   # clean check, 500 images
     subset_clean = n_mrs * SEC_PER_PAIR_500 * scale if fast else 0.0
     cost = (CALIBRATION_MRS + n_mrs) * COST_REPEATS * SEC_PER_PAIR_500 * scale
-    return FIXED_OVERHEAD_S + pairs + gate + subset_clean + cost
+    calib = n_auto * 10 * SEC_PER_PAIR_500                              # ~10 clean-rate measurements each
+    return FIXED_OVERHEAD_S + pairs + gate + subset_clean + cost + calib
 
 
 def format_duration(sec: float) -> str:
@@ -189,6 +197,10 @@ def _specs_input():
         rows.append({"type": "composite",
                      "parameters (allowed range)": f"steps: 2-{MAX_COMPOSITE_STEPS} of the types above"})
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        auto_rows = ", ".join(f"{t}.{p}" for (t, p) in AUTO_SEARCH)
+        st.caption('**Auto magnitude:** set one numeric parameter to `"auto"` and the tool finds the '
+                   "largest magnitude that stays under the clean-model limit (previews show it at its "
+                   f"mildest). Supported: {auto_rows}.")
         st.caption("Each MR needs a unique id (letters, digits, - or _; not MR01-MR20). "
                    "An MR is only usable if it fires on under 5% of the clean model's "
                    "predictions; that check runs at evaluation time. Larger magnitudes "
@@ -196,7 +208,8 @@ def _specs_input():
 
     try:
         specs = parse_specs(text)
-        mrs = build_mrs_from_specs(specs)
+        placeholder, _jobs = prepare_specs(specs)
+        mrs = build_mrs_from_specs(placeholder)   # 'auto' values are shown at their mildest here
     except json.JSONDecodeError as e:
         st.error(f"Not valid JSON: {e}")
         return None, None
@@ -278,8 +291,14 @@ def _evaluation(specs, mrs) -> None:
         mode = st.radio("Mode", ["Fast preview (20 mutants, 100 images)",
                                  "Full evaluation (80 mutants, 500 images)"], key="mr_run_mode")
         fast = mode.startswith("Fast")
+        scope_label = st.radio("Rank", ["My MRs only", "My MRs together with the 20 study MRs"],
+                               key="mr_scope", horizontal=True,
+                               help="'My MRs only' answers: which of MY MRs should I run first? "
+                                    "'Together' shows how they compare with, and add coverage on top "
+                                    "of, the study's MRs.")
+        scope = "mine" if scope_label.startswith("My MRs only") else "all"
         if mrs:
-            est = estimate_seconds(len(mrs), fast)
+            est = estimate_seconds(len(mrs), fast, count_auto(specs))
             st.caption(f"Estimated time for {len(mrs)} MR(s): up to about {format_duration(est)} "
                        "(MRs that fail the clean-model check are skipped; slower on a busy laptop).")
             if est > 600:
@@ -289,6 +308,7 @@ def _evaluation(specs, mrs) -> None:
                 spec_path, out = Path(td) / "mrs.json", Path(td) / "out"
                 spec_path.write_text(json.dumps(specs), encoding="utf-8")
                 cmd = [sys.executable, "-m", "mrrank.run", "--mrs", str(spec_path), "--out", str(out)]
+                cmd += ["--scope", scope]
                 if fast:
                     cmd.append("--fast")
                 env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8",
@@ -307,6 +327,13 @@ def _evaluation(specs, mrs) -> None:
                        "predictions, so their 'violations' are not reliable bug signals): "
                        + ", ".join(f"{k} ({v:.1%})" for k, v in cfg["rejected"].items())
                        + ". Try a smaller magnitude.")
+        if cfg and cfg.get("calibration"):
+            rows = [{"MR": k, "parameter": v["param"], "calibrated value": v["value"],
+                     "clean violation rate": (f"{v['rate']:.1%}" if v["rate"] is not None else "-"),
+                     "note": v["note"] or ""} for k, v in cfg["calibration"].items()]
+            st.markdown("**Auto-calibrated magnitudes** (largest value under the clean-model limit, "
+                        "specific to Model A and its evaluation images)")
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
         if cfg and cfg.get("mode") == "approximate":
             st.info("Approximate run (reduced mutants/images): use it as a preview.")
         if st.session_state.get("mr_run_log"):

@@ -25,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mrrank import config
+from mrrank import config, mr_autocal
 from mrrank.greedy import compute_norm_cost, get_kill_sets, greedy_rank
 from mrrank.matrix_utils import load_cached_results, merge_results
 from mrrank.mr_spec import MRSpecError, build_mrs_from_specs
@@ -110,6 +110,17 @@ def calibrated_costs(stored: dict, ref_now: dict, new_now: dict) -> dict:
     out = dict(stored)
     out.update({m: c / ratio for m, c in new_now.items()})
     return out
+
+
+def build_scope(base_subset: dict, extra: dict, scope: str) -> dict:
+    """scope='mine': rank only the user's MRs. scope='all': stack them under the study's
+    canonical MRs (same mutants) so they compete with, and are diversified against, the 20."""
+    if scope == "all":
+        return merge_results(base_subset, extra)
+    if scope != "mine":
+        raise ValueError(f"unknown scope {scope!r}")
+    return {k: extra[k] for k in ("kill_matrix", "mr_ids", "mutant_ids",
+                                  "clean_violation_rates", "fdr_per_mr")}
 
 
 def rank_merged(merged: dict, cost_ms: dict, user_ids: set) -> list:
@@ -224,7 +235,8 @@ def print_ranking(ranking: list) -> None:
 
 # ---------------------------------------------------------------- pipeline --
 
-def run_pipeline(mrs, specs, out_dir: Path, n_mutants, n_images, keep_invalid: bool) -> int:
+def run_pipeline(mrs, specs, out_dir: Path, n_mutants, n_images, keep_invalid: bool,
+                 scope: str = "mine", auto_jobs=()) -> int:
     from mrrank import data_module, mr_engine                  # cv2/numpy
     from mrrank import evaluation_module as ev                  # torch
     from mrrank.model_module import ModelWrapper
@@ -245,6 +257,35 @@ def run_pipeline(mrs, specs, out_dir: Path, n_mutants, n_images, keep_invalid: b
     mutant_ids = [p.stem for p in mutant_paths]
     approximate = len(images) < 500 or len(mutant_ids) < len(base["mutant_ids"])
 
+    # Auto-calibration: find the largest magnitude under the clean-model limit for each
+    # parameter the user set to "auto" (measured on ALL images, so the gate below agrees).
+    calibration = None
+    if auto_jobs:
+        print(f"Auto-calibrating {len(auto_jobs)} MR(s): largest magnitude with a clean "
+              f"violation rate under {mr_autocal.SEARCH_THRESHOLD:.1%}...")
+
+        def rate_fn(cand):
+            mr = build_mrs_from_specs([cand], max_mrs=1)[0]
+            return ev.compute_clean_violation_rates(wrapper, full_images, [mr])[mr.id]
+
+        final_specs, calibration = mr_autocal.resolve(specs, list(auto_jobs), rate_fn,
+                                                      log=lambda t: print(t, flush=True))
+        for mid, rep in calibration.items():
+            if rep["value"] is None:
+                print(f"  {mid}: could not be calibrated - {rep['note']}")
+            else:
+                print(f"  {mid}: {rep['param']} = {rep['value']} "
+                      f"(clean violation rate {rep['rate']:.1%})"
+                      + (f"; {rep['note']}" if rep["note"] else ""))
+        specs = [sp for sp in final_specs if sp is not None]
+        if not specs:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "run_config.json").write_text(
+                json.dumps({"calibration": calibration, "specs": []}, indent=2), encoding="utf-8")
+            print("\nNo MR could be calibrated; nothing to rank.")
+            return 1
+        mrs = build_mrs_from_specs(specs)
+
     # Gate on ALL images (a 100-image rate is too noisy to accept/reject on);
     # the kill rule below uses the clean rate on the same images as the mutants.
     print(f"Checking {len(mrs)} MR(s) against the clean model on "
@@ -261,12 +302,13 @@ def run_pipeline(mrs, specs, out_dir: Path, n_mutants, n_images, keep_invalid: b
     record = {
         "mode": "approximate" if approximate else "full",
         "n_images": int(len(images)), "n_mutants": len(mutant_ids),
-        "seed": config.SEED, "kill_threshold": ev.KILL_THRESHOLD,
+        "seed": config.SEED, "scope": scope, "kill_threshold": ev.KILL_THRESHOLD,
         "clean_rate_limit": CLEAN_RATE_LIMIT, "specs": specs,
         "clean_violation_rates": clean, "gate_violation_rates": gate,
         "rejected": rejected,
         "mutant_ids": mutant_ids,
     }
+    record["calibration"] = calibration
 
     if not accepted:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -284,7 +326,7 @@ def run_pipeline(mrs, specs, out_dir: Path, n_mutants, n_images, keep_invalid: b
     # the kill decisions above already used the same-image `clean` rates.
     extra["clean_violation_rates"] = {m.id: gate[m.id] for m in accepted}
 
-    merged = merge_results(subset_columns(base, mutant_ids), extra)
+    merged = build_scope(subset_columns(base, mutant_ids), extra, scope)
 
     # Canonical costs come from mr_validation.json (fixed, as in the report).
     # User-MR timings are rescaled by re-timing a few canonical MRs right now.
@@ -328,6 +370,8 @@ def main(argv=None) -> int:
                     help=f"use {FAST_MUTANTS} mutants and {FAST_IMAGES} images (approximate)")
     ap.add_argument("--mutants", type=int, help="use only N evenly spaced mutants")
     ap.add_argument("--images", type=int, help="use only N stratified evaluation images")
+    ap.add_argument("--scope", choices=["mine", "all"], default="mine",
+                    help="mine: rank only your MRs (default); all: rank them together with the 20 study MRs")
     ap.add_argument("--keep-invalid", action="store_true",
                     help="evaluate MRs even if they fail the clean-model check")
     ap.add_argument("--validate-only", action="store_true",
@@ -340,18 +384,21 @@ def main(argv=None) -> int:
 
     try:
         specs = load_specs(args.mrs)
-        mrs = build_mrs_from_specs(specs)
+        placeholder, auto_jobs = mr_autocal.prepare(specs)
+        mrs = build_mrs_from_specs(placeholder)      # validates everything except the auto value
     except (MRSpecError, ValueError, OSError) as e:
         print(f"Invalid MR file: {e}", file=sys.stderr)
         return 2
 
-    print(f"{len(mrs)} MR spec(s) valid: {', '.join(m.id for m in mrs)}")
+    print(f"{len(mrs)} MR spec(s) valid: {', '.join(m.id for m in mrs)}"
+          + (f" ({len(auto_jobs)} to be auto-calibrated)" if auto_jobs else ""))
     if args.validate_only:
         return 0
 
     n_mutants = args.mutants or (FAST_MUTANTS if args.fast else None)
     n_images = args.images or (FAST_IMAGES if args.fast else None)
-    return run_pipeline(mrs, specs, Path(args.out), n_mutants, n_images, args.keep_invalid)
+    return run_pipeline(mrs, specs, Path(args.out), n_mutants, n_images, args.keep_invalid,
+                        args.scope, auto_jobs)
 
 
 if __name__ == "__main__":
