@@ -217,6 +217,9 @@ def can_run_locally():
 
 def _evaluation(specs, mrs) -> None:
     st.subheader("3. Evaluate and rank")
+    import mr_server
+    if os.environ.get("MRRANK_PREFER_SERVER") == "1" and mr_server.render(specs, mrs, show_ranking):
+        return
     ok, why = can_run_locally()
     if ok:
         mode = st.radio("Mode", ["Fast preview (20 mutants, 100 images; about a minute)",
@@ -253,6 +256,10 @@ def _evaluation(specs, mrs) -> None:
         ranking = st.session_state.get("mr_run_ranking")
         if ranking is not None:
             show_ranking(ranking, "Your ranking")
+        return
+
+    import mr_server
+    if mr_server.render(specs, mrs, show_ranking):
         return
 
     st.info(f"Running the evaluation needs PyTorch, the Model A checkpoint and the mutants. "

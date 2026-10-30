@@ -50,7 +50,8 @@ Thumbs.db
 .idea/
 
 mailmap.txt
-
+.streamlit\secrets.toml
+results/jobs/
 # NOTE: app_artifacts/ is intentionally TRACKED (not ignored).
 # It contains only small CSVs/JSONs + the meta-classifier.joblib (~140 KB)
 # needed by the Streamlit app. No datasets, checkpoints, or mutant files.

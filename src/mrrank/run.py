@@ -221,6 +221,7 @@ def write_outputs(out_dir: Path, ranking: list, merged: dict, record: dict) -> N
 
 def print_ranking(ranking: list) -> None:
     has = "rank_p10" in ranking[0]
+    trivial = len(ranking) <= TOPK      # top-5 membership is meaningless with 5 or fewer MRs
     head = (f"\n{'Rank':<6}{'MR':<10}{'Source':<11}{'Priority':<10}{'FDR':<8}"
             f"{'NormCost':<10}{'Diversity':<11}")
     print(head + (f"{'Rank range':<12}{'P(top5)'}" if has else ""))
@@ -229,7 +230,8 @@ def print_ranking(ranking: list) -> None:
         line = (f"{r['rank']:<6}{r['mr_id']:<10}{r['source']:<11}{r['priority_score']:<10.4f}"
                 f"{r['fdr']:<8.3f}{r['norm_cost']:<10.3f}{r['diversity']:<11.3f}")
         if has:
-            line += f"{str(r['rank_p10']) + '-' + str(r['rank_p90']):<12}{r['top5_prob']:.2f}"
+            top5 = "n/a" if trivial else f"{r['top5_prob']:.2f}"
+            line += f"{str(r['rank_p10']) + '-' + str(r['rank_p90']):<12}{top5}"
         print(line)
 
 
