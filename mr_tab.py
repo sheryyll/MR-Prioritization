@@ -142,6 +142,8 @@ def show_ranking(df: pd.DataFrame, title: str = "Ranking") -> None:
     import plotly.express as px
 
     df = annotate_ranking(df)
+    if len(df) <= 5:
+        df = df.drop(columns=["top5_prob"], errors="ignore")
     st.subheader(title)
     top = ", ".join(df["mr_id"].head(5))
     st.markdown(f"**Top 5:** {top}")
@@ -286,6 +288,9 @@ def can_run_locally():
 
 def _evaluation(specs, mrs) -> None:
     st.subheader("3. Evaluate and rank")
+    import mr_server
+    if os.environ.get("MRRANK_PREFER_SERVER") == "1" and mr_server.render(specs, mrs, show_ranking):
+           return
     ok, why = can_run_locally()
     if ok:
         mode = st.radio("Mode", ["Fast preview (20 mutants, 100 images)",
@@ -343,7 +348,8 @@ def _evaluation(specs, mrs) -> None:
         if ranking is not None:
             show_ranking(ranking, "Your ranking")
         return
-
+    if mr_server.render(specs, mrs, show_ranking):
+        return
     st.info(f"Running the evaluation needs PyTorch, the Model A checkpoint and the mutants. "
             f"{why} Run it where they are available (for example your own machine):")
     st.code("python -m mrrank.run --mrs my_mrs.json --out results\\my_run --fast", language="bash")
