@@ -21,9 +21,14 @@ STUB = textwrap.dedent('''
         print(f"{len(specs)} MR spec(s) valid"); sys.exit(0)
     if any(s["id"] == "BOOM" for s in specs):
         print("crash"); sys.exit(1)
+    if any(s["id"] == "NOCAL" for s in specs):
+        out = pathlib.Path(a.out); out.mkdir(parents=True)
+        (out / "run_config.json").write_text(json.dumps({"calibration": {"NOCAL": {"param": "dx", "value": None, "rate": None, "note": "too noisy", "trace": [[0.25, 0.064]]}}, "specs": []}))
+        print("nothing calibrated"); sys.exit(1)
     time.sleep(0.2)
     out = pathlib.Path(a.out); out.mkdir(parents=True)
     (out / "ranking.json").write_text(json.dumps([{"rank": 1, "mr": specs[0]["id"]}]))
+    (out / "run_config.json").write_text(json.dumps({"mode": "approximate", "rejected": {}, "calibration": {specs[0]["id"]: {"param": "angle", "value": 0.8, "rate": 0.036, "note": None, "trace": [[1, 0.1]]}}}))
     (out / "kill_matrix.csv").write_text("mr,m1\\n" + specs[0]["id"] + ",1\\n")
     print("done")
 ''')
@@ -126,3 +131,20 @@ def test_cleanup_removes_old_finished_jobs(client):
     os.utime(mod.JOBS_DIR / jid, (old, old))
     c.post("/jobs", json={"mrs": [{"id": "A"}]}, headers=H)  # triggers cleanup
     assert not (mod.JOBS_DIR / jid).exists()
+
+
+def test_result_includes_calibration_summary(client):
+    c, _ = client
+    jid = c.post("/jobs", json={"mrs": [{"id": "A"}]}, headers=H).json()["job_id"]
+    wait(c, jid, {"done"})
+    summ = c.get(f"/jobs/{jid}/result", headers=H).json()["summary"]
+    assert summ["calibration"]["A"]["value"] == 0.8
+    assert "trace" not in summ["calibration"]["A"]
+    assert summ["mode"] == "approximate"
+
+
+def test_failed_job_still_reports_calibration(client):
+    c, _ = client
+    jid = c.post("/jobs", json={"mrs": [{"id": "NOCAL"}]}, headers=H).json()["job_id"]
+    st = wait(c, jid, {"failed"})
+    assert st["summary"]["calibration"]["NOCAL"]["value"] is None

@@ -155,6 +155,19 @@ def _ensure_worker() -> None:
             _worker_started = True
 
 
+def _run_summary(d: Path) -> dict[str, Any] | None:
+    """Calibration results, rejected MRs and run mode from the CLI's run_config.json."""
+    try:
+        cfg = json.loads((d / "out" / "run_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    cal = cfg.get("calibration")
+    if isinstance(cal, dict):
+        cal = {k: {f: (v or {}).get(f) for f in ("param", "value", "rate", "note")}
+               for k, v in cal.items()}
+    return {"calibration": cal, "rejected": cfg.get("rejected") or {}, "mode": cfg.get("mode")}
+
+
 def _log_tail(d: Path) -> str:
     try:
         return (d / "job.log").read_text(encoding="utf-8", errors="replace")[-LOG_TAIL_CHARS:]
@@ -209,6 +222,8 @@ def status(job_id: str) -> dict[str, Any]:
     st = _read_status(d)
     st["job_id"] = job_id
     st["log_tail"] = _log_tail(d)
+    if st.get("status") in ("done", "failed"):
+        st["summary"] = _run_summary(d)
     return st
 
 
@@ -223,6 +238,7 @@ def result(job_id: str) -> dict[str, Any]:
         "job_id": job_id,
         "ranking": json.loads((out / "ranking.json").read_text(encoding="utf-8")),
         "log_tail": _log_tail(d),
+        "summary": _run_summary(d),
     }
     km = out / "kill_matrix.csv"
     if km.exists():

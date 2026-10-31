@@ -121,6 +121,36 @@ def _health_cached(url: str):
     return health(url)
 
 
+def calibration_rows(summary) -> list:
+    """Table rows for the auto-calibration results (empty if nothing was auto-calibrated)."""
+    cal = (summary or {}).get("calibration") or {}
+    rows = []
+    for mid, rep in cal.items():
+        value = rep.get("value")
+        rate = rep.get("rate")
+        rows.append({"MR": mid, "parameter": rep.get("param") or "",
+                     "calibrated value": "not calibrated" if value is None else str(value),
+                     "clean violation rate": "-" if rate is None else f"{rate:.1%}",
+                     "note": rep.get("note") or ""})
+    return rows
+
+
+def _show_summary(summary) -> None:
+    rows = calibration_rows(summary)
+    if rows:
+        st.markdown("**Auto-calibrated magnitudes** (largest value under the clean-model limit, "
+                    "specific to Model A and its evaluation images)")
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    rejected = (summary or {}).get("rejected") or {}
+    if rejected:
+        st.warning("Rejected before evaluation (fire on more than 5% of the clean model's "
+                   "predictions, so their 'violations' are not reliable bug signals): "
+                   + ", ".join(f"{k} ({v:.1%})" for k, v in rejected.items())
+                   + ". Try a smaller magnitude.")
+    if (summary or {}).get("mode") == "approximate":
+        st.info("Approximate run (reduced mutants/images): use it as a preview.")
+
+
 def _finish(**state) -> None:
     for k, v in state.items():
         st.session_state[k] = v
@@ -155,10 +185,11 @@ def _panel(url: str, token: str) -> None:
         except ServerError as e:
             _finish(mr_srv_err=f"The job finished but its result could not be fetched: {e}")
         _finish(mr_run_ranking=pd.DataFrame(res["ranking"]), mr_run_log=res.get("log_tail", ""),
-                mr_srv_err=None)
+                mr_run_summary=res.get("summary"), mr_srv_err=None)
     else:
         _finish(mr_srv_err=f"The run failed: {s.get('error') or 'unknown error'}",
-                mr_run_ranking=None, mr_run_log=s.get("log_tail", ""))
+                mr_run_ranking=None, mr_run_log=s.get("log_tail", ""),
+                mr_run_summary=s.get("summary"))
 
 
 def render(specs, mrs, show_ranking) -> bool:
@@ -187,12 +218,14 @@ def render(specs, mrs, show_ranking) -> bool:
             st.session_state["mr_srv_err"] = str(e)
         else:
             st.session_state.update(mr_srv_job=job, mr_srv_t0=time.time(), mr_srv_err=None,
-                                    mr_run_ranking=None, mr_run_log="")
+                                    mr_run_ranking=None, mr_run_log="", mr_run_summary=None)
 
     st.fragment(run_every=POLL_EVERY_S if st.session_state.get("mr_srv_job") else None)(_panel)(url, token)
 
     if st.session_state.get("mr_srv_err"):
         st.error(st.session_state["mr_srv_err"])
+    if not busy:
+        _show_summary(st.session_state.get("mr_run_summary"))
     if st.session_state.get("mr_run_log") and not busy:
         with st.expander("Run log (shows any MR that could not be calibrated or was rejected)"):
             st.code(st.session_state["mr_run_log"])
