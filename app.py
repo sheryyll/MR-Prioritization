@@ -24,15 +24,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import mr_tab  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
 ARTIFACTS = Path(__file__).resolve().parent / "app_artifacts"
 
-# ---------------------------------------------------------------------------
-# Page config
-# ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="MR-Rank | Metamorphic Relation Prioritization",
     page_icon="🧪",
@@ -40,9 +35,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ---------------------------------------------------------------------------
-# Custom CSS
-# ---------------------------------------------------------------------------
 st.markdown("""
 <style>
     /* Refined typography & spacing */
@@ -101,12 +93,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Header
-# ---------------------------------------------------------------------------
 col_title, col_badge = st.columns([5, 1])
 with col_title:
-    st.title("🧪 MR-Rank")
+    st.title("MR-Rank")
     st.caption("Metamorphic Relation Prioritization for ResNet-18 on CIFAR-10 · 20 MRs × 80 Mutants")
 with col_badge:
     st.markdown(
@@ -116,10 +105,6 @@ with col_badge:
         "</div>",
         unsafe_allow_html=True,
     )
-
-# ---------------------------------------------------------------------------
-# Data loaders (cached)
-# ---------------------------------------------------------------------------
 
 @st.cache_data(show_spinner=False)
 def load_greedy() -> pd.DataFrame:
@@ -163,17 +148,18 @@ def load_classifier():
     return bundle["clf"]
 
 
-# ---------------------------------------------------------------------------
-# Tabs
-# ---------------------------------------------------------------------------
-tab_rank, tab_eval, tab_infer, tab_about = st.tabs([
-    "📊 Rankings",
-    "📈 Evaluation",
-    "🔮 Rank a new model",
-    "ℹ️ About",
+tab_rank, tab_eval, tab_infer, tab_run, tab_about = st.tabs([
+    "Rankings",
+    "Evaluation",
+    "Rank a new model",
+    "Run my MRs",
+    "About",
 ])
 
-# ============================================================ Tab 1: Rankings
+#  Tab 4: Run my MRs
+with tab_run:
+    mr_tab.render()
+
 with tab_rank:
     greedy_df = load_greedy()
     meta_df = load_meta_clf_ranking()
@@ -310,7 +296,6 @@ with tab_rank:
     st.metric("Spearman rank correlation (Greedy ↔ Meta-Clf)", f"{spearman:.4f}")
 
 
-# ========================================================= Tab 2: Evaluation
 with tab_eval:
     eval_data = load_eval()
     km_df, mr_ids, mutant_ids = load_kill_matrix()
@@ -439,7 +424,6 @@ with tab_eval:
     st.plotly_chart(fig_fdr, use_container_width=True)
 
 
-# ===================================================== Tab 3: Rank a New Model
 with tab_infer:
     st.markdown("### Rank MRs for a New Model")
     st.caption(
@@ -539,7 +523,7 @@ Then upload the file below, or paste the values manually.
 
     if valid and not warnings:
         st.divider()
-        run_btn = st.button("🔮 Rank MRs for this model", type="primary", use_container_width=True)
+        run_btn = st.button("Rank MRs for this model", type="primary", use_container_width=True)
         if run_btn:
             with st.spinner("Running meta-classifier inference..."):
                 model_features = {
@@ -660,7 +644,6 @@ Then upload the file below, or paste the values manually.
             )
 
 
-# ============================================================== Tab 4: About
 with tab_about:
     st.markdown("## About MR-Rank")
     st.markdown("""
@@ -703,7 +686,7 @@ The classifier uses **11 features** per (MR, mutant) row:
     col_date.metric("Last updated", "2026-10-07")
 
     st.markdown("---")
-    st.markdown("### ⚠️ Known Issues / Limitations")
+    st.markdown("###  Known Issues / Limitations")
     st.info("""
 
 1. **MR15 (Scale Down) and MR12 (Unsharp Mask) dominate** — together they cover every detectable

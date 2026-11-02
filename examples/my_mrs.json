@@ -1,0 +1,9 @@
+[
+  {"id": "U01", "name": "Rotate 1.2 degrees", "type": "rotate", "params": {"angle": 1.2}},
+  {"id": "U02", "name": "Brighten +15", "type": "brightness", "params": {"delta": 15}},
+  {"id": "U03", "name": "Mild contrast then JPEG", "type": "composite",
+   "steps": [
+     {"type": "contrast", "params": {"factor": 1.03}},
+     {"type": "jpeg", "params": {"quality": 98}}
+   ]}
+]

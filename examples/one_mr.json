@@ -1,0 +1,3 @@
+[ 
+  {"id": "U01", "name": "Rotate 2 degrees", "type": "rotate", "params": {"angle": 2.0}} 
+] 
