@@ -156,17 +156,9 @@ tab_rank, tab_eval, tab_infer, tab_run, tab_about = st.tabs([
     "About",
 ])
 
-# ======================================================== Tab 4: Run my MRs
+#  Tab 4: Run my MRs
 with tab_run:
     mr_tab.render()
-
-# ============================================================ Tab 1: Rankings
-tab_rank, tab_eval, tab_infer, tab_about = st.tabs([
-    "Rankings",
-    "Evaluation",
-    "Rank a new model",
-    "About",
-])
 
 with tab_rank:
     greedy_df = load_greedy()
