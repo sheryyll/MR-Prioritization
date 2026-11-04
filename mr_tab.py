@@ -286,11 +286,13 @@ def can_run_locally():
     return True, ""
 
 
-def _evaluation(specs, mrs) -> None:
+def _evaluation(specs, mrs) -> bool:
+    """Draw step 3. Returns True when the server section was drawn (it already shows its own
+    results, so the caller then skips the example-ranking viewer)."""
     st.subheader("3. Evaluate and rank")
     import mr_server
     if os.environ.get("MRRANK_PREFER_SERVER") == "1" and mr_server.render(specs, mrs, show_ranking):
-           return
+        return True
     ok, why = can_run_locally()
     if ok:
         mode = st.radio("Mode", ["Fast preview (20 mutants, 100 images)",
@@ -347,13 +349,14 @@ def _evaluation(specs, mrs) -> None:
         ranking = st.session_state.get("mr_run_ranking")
         if ranking is not None:
             show_ranking(ranking, "Your ranking")
-        return
+        return False
     if mr_server.render(specs, mrs, show_ranking):
-        return
+        return True
     st.info(f"Running the evaluation needs PyTorch, the Model A checkpoint and the mutants. "
             f"{why} Run it where they are available (for example your own machine):")
     st.code("python -m mrrank.run --mrs my_mrs.json --out results\\my_run --fast", language="bash")
     st.caption("Drop `--fast` for the full 80-mutant, 500-image evaluation.")
+    return False
 
 
 def _results_viewer() -> None:
@@ -391,9 +394,9 @@ def render() -> None:
     specs, mrs = _specs_input()
     if mrs:
         _preview(mrs)
-    _evaluation(specs, mrs)
+    server_used = _evaluation(specs, mrs)
     ok, _ = can_run_locally()
-    if not ok:
+    if not ok and not server_used:
         _results_viewer()
 
 
