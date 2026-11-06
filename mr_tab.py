@@ -26,6 +26,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import streamlit as st
+from ui_theme import plot_chart
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "src"
@@ -171,7 +172,7 @@ def show_ranking(df: pd.DataFrame, title: str = "Ranking") -> None:
                  color_discrete_map={"user": "#3c82dc", "canonical": "#9aa5b1"})
     fig.update_layout(xaxis_title="MR (ranked order)", yaxis_title="Priority score",
                       xaxis={"categoryorder": "array", "categoryarray": df["mr_id"].tolist()})
-    st.plotly_chart(fig, width="stretch")
+    plot_chart(fig, width="stretch")
     st.download_button("Download ranking.csv", df.drop(columns=["note"]).to_csv(index=False),
                        file_name="ranking.csv", mime="text/csv")
 
@@ -391,10 +392,15 @@ def render() -> None:
                    "You can still view a ranking below.")
         _results_viewer()
         return
-    specs, mrs = _specs_input()
+    st.markdown('<div id="define-mrs" class="section-anchor"></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        specs, mrs = _specs_input()
     if mrs:
-        _preview(mrs)
-    server_used = _evaluation(specs, mrs)
+        with st.container(border=True):
+            _preview(mrs)
+    st.markdown('<div id="evaluate-mrs" class="section-anchor"></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        server_used = _evaluation(specs, mrs)
     ok, _ = can_run_locally()
     if not ok and not server_used:
         _results_viewer()

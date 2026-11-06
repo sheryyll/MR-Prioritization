@@ -4,7 +4,7 @@ app.py — MR-Rank Streamlit Community Cloud entry-point.
 Tabs:
   1. Rankings         — Greedy + Meta-classifier tables & charts
   2. Evaluation       — APFD table, FD@k curves, kill-matrix heatmap
-  3. Rank a new model — Upload fingerprint JSON → ranked MR list
+  3. Run my MRs      — Define, preview, and evaluate custom MRs
   4. About            — Project summary, version, known issues
 
 Hard constraints:
@@ -18,13 +18,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import joblib
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import mr_tab  # noqa: E402
+from matrix_view import render_matrix
+from ui_theme import apply_theme, section_header, plot_chart, CATEGORY_COLORS
 
 ARTIFACTS = Path(__file__).resolve().parent / "app_artifacts"
 
@@ -35,76 +35,27 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-st.markdown("""
-<style>
-    /* Refined typography & spacing */
-    [data-testid="stAppViewContainer"] {
-        background: linear-gradient(135deg, #0f1117 0%, #1a1f2e 50%, #0f1117 100%);
-    }
-    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
-    h1 { color: #e0e7ff; letter-spacing: -0.5px; }
-    h2 { color: #c7d2fe; font-size: 1.3rem; }
-    h3 { color: #a5b4fc; font-size: 1.1rem; }
+apply_theme()
 
-    /* Metric cards */
-    [data-testid="stMetric"] {
-        background: rgba(99, 102, 241, 0.08);
-        border: 1px solid rgba(99, 102, 241, 0.2);
-        border-radius: 12px;
-        padding: 0.8rem 1rem;
-    }
-    [data-testid="stMetricLabel"] { color: #a5b4fc !important; font-size: 0.78rem; }
-    [data-testid="stMetricValue"] { color: #e0e7ff !important; }
-    [data-testid="stMetricDelta"] { font-size: 0.72rem; }
-
-    /* Tab styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 4px;
-        background: rgba(15, 17, 23, 0.6);
-        border-radius: 12px;
-        padding: 4px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        color: #94a3b8;
-        border-radius: 8px;
-        padding: 0.5rem 1.2rem;
-        font-size: 0.88rem;
-    }
-    .stTabs [aria-selected="true"] {
-        background: rgba(99, 102, 241, 0.25) !important;
-        color: #e0e7ff !important;
-    }
-
-    /* Dataframes */
-    .stDataFrame { border-radius: 10px; overflow: hidden; }
-
-    /* Info/warning boxes */
-    .stAlert { border-radius: 10px; }
-
-    /* File uploader */
-    [data-testid="stFileUploader"] {
-        border: 2px dashed rgba(99, 102, 241, 0.35);
-        border-radius: 12px;
-        padding: 1rem;
-    }
-
-    /* Sidebar */
-    [data-testid="stSidebar"] { background: #0d1117; }
-</style>
-""", unsafe_allow_html=True)
-
-col_title, col_badge = st.columns([5, 1])
-with col_title:
-    st.title("MR-Rank")
-    st.caption("Metamorphic Relation Prioritization for ResNet-18 on CIFAR-10 · 20 MRs × 80 Mutants")
-with col_badge:
-    st.markdown(
-        "<div style='text-align:right;padding-top:1rem'>"
-        "<span style='background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);"
-        "border-radius:20px;padding:4px 12px;font-size:0.75rem;color:#a5b4fc'>v1.0.0</span>"
-        "</div>",
-        unsafe_allow_html=True,
+st.markdown('<div id="page-top"></div>', unsafe_allow_html=True)
+st.markdown("### MR-Rank")
+with st.container(key="main_navigation"):
+    page = st.radio(
+        "Main navigation", ["Rankings", "Evaluation", "Run my MRs", "About"],
+        horizontal=True, label_visibility="collapsed", key="workspace_page",
     )
+st.caption("ResNet-18 · CIFAR-10 · 20 relations · 80 mutants")
+
+
+def jump_links(items):
+    links = "".join(f'<a href="#{target}" target="_self">{label}</a>' for target, label in items)
+    st.markdown(f'<nav class="section-links" aria-label="On this page"><span>Jump to</span>{links}</nav>',
+                unsafe_allow_html=True)
+
+
+def anchor(name):
+    st.markdown(f'<div id="{name}" class="section-anchor"></div>', unsafe_allow_html=True)
+
 
 @st.cache_data(show_spinner=False)
 def load_greedy() -> pd.DataFrame:
@@ -137,127 +88,117 @@ def load_eval() -> dict:
     return json.loads((ARTIFACTS / "evaluation_summary.json").read_text())
 
 
-@st.cache_data(show_spinner=False)
-def load_feature_columns() -> list[str]:
-    return json.loads((ARTIFACTS / "feature_columns.json").read_text())
-
-
-@st.cache_resource(show_spinner=False)
-def load_classifier():
-    bundle = joblib.load(ARTIFACTS / "meta_classifier.joblib")
-    return bundle["clf"]
-
-
-tab_rank, tab_eval, tab_infer, tab_run, tab_about = st.tabs([
-    "Rankings",
-    "Evaluation",
-    "Rank a new model",
-    "Run my MRs",
-    "About",
-])
+# Metrics
+km_df, mr_ids, mutant_ids = load_kill_matrix()
+km_bool = km_df.values.astype(bool)
+n_detectable = int(km_bool.any(axis=0).sum())
+eval_data = load_eval()
 
 #  Tab 4: Run my MRs
-with tab_run:
+if page == "Run my MRs":
+    section_header("03 / MR WORKBENCH", "Custom relations", "Work through the existing custom-relation workflow below.")
+    jump_links([("define-mrs", "Define MRs"), ("evaluate-mrs", "Evaluate & rank")])
     mr_tab.render()
 
-with tab_rank:
+if page == "Rankings":
     greedy_df = load_greedy()
     meta_df = load_meta_clf_ranking()
     mr_lib = load_mr_library()
     mr_scores = load_mr_scores()
 
-    st.markdown("### Greedy Ranking — Model A")
-    st.caption(
-        "Priority = **0.5 × FDR** + **0.2 × (1 − NormCost)** + **0.3 × Diversity**  "
-        "(see report Eq. 4.1-4.4)"
-    )
-
-    # Metrics
-    km_df, mr_ids, mutant_ids = load_kill_matrix()
-    km_bool = km_df.values.astype(bool)
-    n_detectable = int(km_bool.any(axis=0).sum())
-    eval_data = load_eval()
-
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("MRs", len(mr_ids))
-    m2.metric("Mutants", len(mutant_ids))
-    m3.metric("Detectable mutants", n_detectable)
-    greedy_apfd = eval_data["apfd"]["greedy"]
-    rand_apfd = eval_data["apfd"]["random_mean"]
-    m4.metric("APFD (Greedy)", f"{greedy_apfd:.4f}", delta=f"{greedy_apfd - rand_apfd:+.4f} vs random")
-
-    st.divider()
-
-    # Greedy bar chart
-    greedy_display = greedy_df.merge(mr_lib[["mr_id", "name", "category"]], on="mr_id", how="left")
-    greedy_display["label"] = greedy_display["mr_id"] + ": " + greedy_display["name"].fillna("")
-
-    fig_greedy = px.bar(
-        greedy_display,
-        x="mr_id",
-        y="priority_score",
-        color="category",
-        hover_data=["name", "fdr", "norm_cost", "diversity_at_selection"],
-        color_discrete_sequence=px.colors.qualitative.Vivid,
-        labels={"priority_score": "Priority Score", "mr_id": ""},
-        category_orders={"mr_id": greedy_df["mr_id"].tolist()},
-    )
-    fig_greedy.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=10, r=10, t=30, b=10),
-        height=320,
-        xaxis=dict(tickfont=dict(size=11)),
-        legend_title="Category",
-    )
-    st.plotly_chart(fig_greedy, use_container_width=True)
-
-    with st.expander("Full Greedy Ranking Table", expanded=False):
-        display_cols = ["rank", "mr_id", "priority_score", "fdr", "norm_cost", "diversity_at_selection"]
-        st.dataframe(
-            greedy_display[display_cols].set_index("rank").round(4),
-            use_container_width=True,
+    section_header("01 / RANKINGS", "Prioritization methods",
+                   "Inspect each ordering, then compare how individual relations move between methods.")
+    jump_links([("greedy-ranking", "Greedy ranking"), ("meta-ranking", "Meta-classifier"),
+                ("rank-comparison", "Compare rankings")])
+    anchor("greedy-ranking")
+    with st.container():
+        st.markdown("### Greedy Ranking — Model A")
+        st.caption(
+            "Priority = **0.5 × FDR** + **0.2 × (1 − NormCost)** + **0.3 × Diversity**  "
+            "(see report Eq. 4.1-4.4)"
         )
 
-    st.divider()
-    st.markdown("### Meta-Classifier Ranking — Model B")
-    st.caption(
-        "Gradient Boosting classifier predicts kill probability per (MR, mutant) pair. "
-        "Ranks are averaged over all mutant profiles."
-    )
 
-    meta_display = meta_df.merge(mr_lib[["mr_id", "name", "category"]], on="mr_id", how="left")
-    fig_meta = px.bar(
-        meta_display,
-        x="mr_id",
-        y="predicted_kill_prob",
-        color="category",
-        hover_data=["name"],
-        color_discrete_sequence=px.colors.qualitative.Vivid,
-        labels={"predicted_kill_prob": "Predicted Kill Probability", "mr_id": ""},
-        category_orders={"mr_id": meta_df["mr_id"].tolist()},
-    )
-    fig_meta.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=10, r=10, t=30, b=10),
-        height=320,
-        xaxis=dict(tickfont=dict(size=11)),
-        legend_title="Category",
-    )
-    st.plotly_chart(fig_meta, use_container_width=True)
+        # Greedy bar chart
+        greedy_display = greedy_df.merge(mr_lib[["mr_id", "name", "category"]], on="mr_id", how="left")
+        greedy_display["label"] = greedy_display["mr_id"] + ": " + greedy_display["name"].fillna("")
 
-    with st.expander("Full Meta-Classifier Ranking Table", expanded=False):
-        st.dataframe(
-            meta_display[["rank", "mr_id", "name", "category", "predicted_kill_prob"]]
-            .set_index("rank").round(4),
-            use_container_width=True,
+        fig_greedy = px.bar(
+            greedy_display,
+            y="label",
+            x="priority_score",
+            orientation="h",
+            color="category",
+            hover_data=["name", "fdr", "norm_cost", "diversity_at_selection"],
+            color_discrete_map=CATEGORY_COLORS,
+            labels={"priority_score": "Priority Score", "mr_id": ""},
+            category_orders={"mr_id": greedy_df["mr_id"].tolist()},
         )
+        fig_greedy.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=30, b=10),
+            height=320,
+            xaxis=dict(tickfont=dict(size=11)),
+            legend_title="Category",
+        )
+        fig_greedy.update_layout(height=660, xaxis_title="Priority score", yaxis_title=None)
+        fig_greedy.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=greedy_display["label"].tolist())
+        plot_chart(fig_greedy, use_container_width=True)
+
+        with st.expander("Full Greedy Ranking Table", expanded=False):
+            display_cols = ["rank", "mr_id", "priority_score", "fdr", "norm_cost", "diversity_at_selection"]
+            st.dataframe(
+                greedy_display[display_cols].set_index("rank").round(4),
+                use_container_width=True,
+            )
+
+    st.divider()
+    anchor("meta-ranking")
+    with st.container():
+        st.markdown("### Meta-Classifier Ranking — Model B")
+        st.caption(
+            "Gradient Boosting classifier predicts kill probability per (MR, mutant) pair. "
+            "Ranks are averaged over all mutant profiles."
+        )
+
+        meta_display = meta_df.merge(mr_lib[["mr_id", "name", "category"]], on="mr_id", how="left")
+        meta_display["label"] = meta_display["mr_id"] + ": " + meta_display["name"].fillna("")
+        fig_meta = px.bar(
+            meta_display,
+            y="label",
+            x="predicted_kill_prob",
+            orientation="h",
+            color="category",
+            hover_data=["name"],
+            color_discrete_map=CATEGORY_COLORS,
+            labels={"predicted_kill_prob": "Predicted Kill Probability", "mr_id": ""},
+            category_orders={"mr_id": meta_df["mr_id"].tolist()},
+        )
+        fig_meta.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=30, b=10),
+            height=320,
+            xaxis=dict(tickfont=dict(size=11)),
+            legend_title="Category",
+        )
+        fig_meta.update_layout(height=660, xaxis_title="Predicted kill probability", yaxis_title=None)
+        fig_meta.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=meta_display["label"].tolist())
+        plot_chart(fig_meta, use_container_width=True)
+
+        with st.expander("Full Meta-Classifier Ranking Table", expanded=False):
+            st.dataframe(
+                meta_display[["rank", "mr_id", "name", "category", "predicted_kill_prob"]]
+                .set_index("rank").round(4),
+                use_container_width=True,
+            )
 
     # Side-by-side rank comparison
     st.divider()
+    anchor("rank-comparison")
     st.markdown("### Side-by-Side Rank Comparison")
     merged = greedy_df[["mr_id", "rank"]].rename(columns={"rank": "rank_greedy"}).merge(
         meta_df[["mr_id", "rank"]].rename(columns={"rank": "rank_meta"}), on="mr_id"
@@ -267,7 +208,7 @@ with tab_rank:
 
     fig_cmp = go.Figure()
     for _, row in merged.iterrows():
-        color = "#818cf8" if row["delta"] > 0 else "#f87171" if row["delta"] < 0 else "#94a3b8"
+        color = "#D4A65A" if row["delta"] > 0 else "#BC8276" if row["delta"] < 0 else "#9A9DA2"
         fig_cmp.add_trace(go.Scatter(
             x=["Greedy", "Meta-Clf"],
             y=[row["rank_greedy"], row["rank_meta"]],
@@ -291,17 +232,29 @@ with tab_rank:
         height=550,
         margin=dict(l=80, r=80, t=20, b=20),
     )
-    st.plotly_chart(fig_cmp, use_container_width=True)
+    plot_chart(fig_cmp, use_container_width=True)
     spearman = merged[["rank_greedy", "rank_meta"]].corr(method="spearman").iloc[0, 1]
     st.metric("Spearman rank correlation (Greedy ↔ Meta-Clf)", f"{spearman:.4f}")
 
 
-with tab_eval:
+if page == "Evaluation":
+    jump_links([("apfd", "Performance summary"), ("detection-curve", "Detection curve"),
+                ("kill-matrix", "Kill matrix"), ("fdr", "Detection rate per MR")])
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("MRs", len(mr_ids))
+    m2.metric("Mutants", len(mutant_ids))
+    m3.metric("Detectable mutants", n_detectable)
+    greedy_apfd = eval_data["apfd"]["greedy"]
+    rand_apfd = eval_data["apfd"]["random_mean"]
+    m4.metric("APFD (Greedy)", f"{greedy_apfd:.4f}", delta=f"{greedy_apfd - rand_apfd:+.4f} vs random")
+
+    section_header("02 / EVALUATION", "Detection performance", "Compare detection performance, inspect fault coverage, and explore the contribution of each relation.")
     eval_data = load_eval()
     km_df, mr_ids, mutant_ids = load_kill_matrix()
     km_bool = km_df.values.astype(bool)
     n_det = int(km_bool.any(axis=0).sum())
 
+    anchor("apfd")
     st.markdown("### APFD Comparison")
     st.caption(
         "**Average Percentage of Faults Detected** (higher is better). "
@@ -329,6 +282,7 @@ with tab_eval:
         st.caption(f"Wilcoxon (Greedy vs 30 random trials): p = {pval:.2e} — {sig_str} at α = 0.05")
 
     st.divider()
+    anchor("detection-curve")
     st.markdown("### FD@k — Fault Detection Curve")
     st.caption("Fraction of detectable mutants found by using only the top-k MRs.")
 
@@ -346,10 +300,10 @@ with tab_eval:
         fd_df.melt("k", var_name="Ordering", value_name="FD@k"),
         x="k", y="FD@k", color="Ordering", markers=True,
         color_discrete_map={
-            "Greedy": "#818cf8",
-            "FDR-only": "#34d399",
-            "Meta-Classifier": "#f472b6",
-            "Random (mean)": "#94a3b8",
+            "Greedy": "#D4A65A",
+            "FDR-only": "#8CABA0",
+            "Meta-Classifier": "#A7A0BA",
+            "Random (mean)": "#9A9DA2",
         },
     )
     fig_fdk.update_layout(
@@ -363,43 +317,15 @@ with tab_eval:
         xaxis=dict(dtick=1),
         yaxis=dict(range=[0, 1.05]),
     )
-    st.plotly_chart(fig_fdk, use_container_width=True)
+    plot_chart(fig_fdk, use_container_width=True)
 
     st.divider()
-    st.markdown("### Kill Matrix Heatmap")
-    st.caption("Rows = MRs (ordered by Greedy rank), Columns = Mutants. Blue = killed.")
-
-    greedy_df = load_greedy()
-    greedy_order = greedy_df["mr_id"].tolist()
-    mr_id_to_idx = {mr: i for i, mr in enumerate(mr_ids)}
-    z = km_bool[[mr_id_to_idx[m] for m in greedy_order]].astype(int)
-
-    by_rank = st.checkbox("Order rows by Greedy rank", value=True)
-    row_order = greedy_order if by_rank else mr_ids
-    z_display = km_bool[[mr_id_to_idx[m] for m in row_order]].astype(int)
-
-    fig_hm = go.Figure(go.Heatmap(
-        z=z_display,
-        x=mutant_ids,
-        y=row_order,
-        showscale=False,
-        colorscale=[[0, "rgba(30,30,50,0.4)"], [1, "#818cf8"]],
-        hoverongaps=False,
-        hovertemplate="MR: %{y}<br>Mutant: %{x}<br>Kill: %{z}<extra></extra>",
-    ))
-    fig_hm.update_yaxes(autorange="reversed")
-    fig_hm.update_xaxes(showticklabels=False, title="Mutants (80)")
-    fig_hm.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        height=480,
-        margin=dict(l=10, r=10, t=20, b=10),
-    )
-    st.plotly_chart(fig_hm, use_container_width=True)
+    anchor("kill-matrix")
+    render_matrix(km_df, load_mr_library(), load_greedy()["mr_id"].tolist())
 
     # FDR bar chart
     st.divider()
+    anchor("fdr")
     st.markdown("### Fault Detection Rate per MR")
     mr_scores_df = load_mr_scores()
     mr_lib = load_mr_library()
@@ -410,7 +336,7 @@ with tab_eval:
         fdr_display_sorted,
         x="mr_id", y="fdr", color="category",
         hover_data=["name", "cost_ms"],
-        color_discrete_sequence=px.colors.qualitative.Vivid,
+        color_discrete_map=CATEGORY_COLORS,
         labels={"fdr": "FDR", "mr_id": ""},
         category_orders={"mr_id": fdr_display_sorted["mr_id"].tolist()},
     )
@@ -421,230 +347,11 @@ with tab_eval:
         height=300,
         margin=dict(l=10, r=10, t=20, b=10),
     )
-    st.plotly_chart(fig_fdr, use_container_width=True)
+    plot_chart(fig_fdr, use_container_width=True)
 
 
-with tab_infer:
-    st.markdown("### Rank MRs for a New Model")
-    st.caption(
-        "Provide your model's **fingerprint** (3 scalar statistics). The meta-classifier will "
-        "predict kill probabilities and rank all 20 MRs for your model."
-    )
-
-    feature_cols = load_feature_columns()
-    mr_lib = load_mr_library()
-    clf = load_classifier()
-
-    # Fingerprint format info
-    with st.expander("How to generate a fingerprint", expanded=False):
-        st.markdown("""
-Run the standalone script on your ResNet-18 checkpoint:
-
-```bash
-python scripts/compute_fingerprint.py \\
-    --checkpoint path/to/your_model.pth \\
-    --out my_fingerprint.json
-```
-
-This produces a JSON file with these fields:
-
-| Field | Description | Typical range |
-|-------|-------------|---------------|
-| `avg_weight_magnitude` | Mean of |all weights| | 0.02 – 0.15 |
-| `weight_std` | Std of all weights | 0.03 – 0.30 |
-| `test_accuracy` | Top-1 accuracy on the 500-image eval subset | 0.40 – 0.95 |
-
-Then upload the file below, or paste the values manually.
-""")
-
-    input_mode = st.radio("Input method", ["Upload JSON file", "Enter manually"], horizontal=True)
-
-    avg_weight_magnitude: float | None = None
-    weight_std: float | None = None
-    test_accuracy: float | None = None
-    valid = False
-
-    if input_mode == "Upload JSON file":
-        uploaded = st.file_uploader(
-            "Upload fingerprint JSON",
-            type=["json"],
-            help="JSON file produced by scripts/compute_fingerprint.py",
-        )
-        if uploaded is not None:
-            try:
-                fp = json.loads(uploaded.read())
-                avg_weight_magnitude = float(fp["avg_weight_magnitude"])
-                weight_std = float(fp["weight_std"])
-                test_accuracy = float(fp["test_accuracy"])
-                valid = True
-
-                c1, c2, c3 = st.columns(3)
-                c1.metric("avg_weight_magnitude", f"{avg_weight_magnitude:.6f}")
-                c2.metric("weight_std", f"{weight_std:.6f}")
-                c3.metric("test_accuracy", f"{test_accuracy:.4f}")
-
-            except (KeyError, ValueError, json.JSONDecodeError) as e:
-                st.error(
-                    f"Invalid fingerprint file: {e}. "
-                    "Expected keys: avg_weight_magnitude, weight_std, test_accuracy."
-                )
-
-    else:  # Manual entry
-        st.markdown("Enter the three values below:")
-        c1, c2, c3 = st.columns(3)
-        avg_weight_magnitude = c1.number_input(
-            "avg_weight_magnitude",
-            min_value=0.0, max_value=10.0, value=0.05, step=0.001, format="%.6f",
-            help="Mean absolute value of all model weights. Typical range: 0.02 – 0.15",
-        )
-        weight_std = c2.number_input(
-            "weight_std",
-            min_value=0.0, max_value=10.0, value=0.08, step=0.001, format="%.6f",
-            help="Standard deviation of all model weights. Typical range: 0.03 – 0.30",
-        )
-        test_accuracy = c3.number_input(
-            "test_accuracy",
-            min_value=0.0, max_value=1.0, value=0.87, step=0.001, format="%.4f",
-            help="Top-1 accuracy on the 500-image CIFAR-10 eval subset (fraction, not %).",
-        )
-        valid = True
-
-    # Validate
-    if valid:
-        warnings = []
-        if not (0.0 <= avg_weight_magnitude <= 2.0):
-            warnings.append(f"avg_weight_magnitude={avg_weight_magnitude:.4f} is outside the expected range [0, 2].")
-        if not (0.0 <= weight_std <= 2.0):
-            warnings.append(f"weight_std={weight_std:.4f} is outside the expected range [0, 2].")
-        if not (0.0 <= test_accuracy <= 1.0):
-            warnings.append(f"test_accuracy={test_accuracy:.4f} must be in [0, 1].")
-        for w in warnings:
-            st.warning(w)
-
-    if valid and not warnings:
-        st.divider()
-        run_btn = st.button("Rank MRs for this model", type="primary", use_container_width=True)
-        if run_btn:
-            with st.spinner("Running meta-classifier inference..."):
-                model_features = {
-                    "avg_weight_magnitude": avg_weight_magnitude,
-                    "weight_std": weight_std,
-                    "test_accuracy": test_accuracy,
-                }
-
-                # Rebuild rows: MR metadata × mutant profiles
-                # Load from mr_library and mr_scores
-                mr_lib_loaded = load_mr_library()
-                mr_scores_loaded = load_mr_scores()
-                km_df_l, _, mutant_ids_l = load_kill_matrix()
-
-                def parse_mutant_local(mid: str) -> dict:
-                    op_enc = {"weight_fuzz_low": 1, "weight_fuzz_high": 1,
-                              "weight_negate": 2, "weight_zero": 3,
-                              "label_corrupt_40": 4, "label_corrupt_55": 4}
-                    layer_enc = {"layer1.0": 1, "layer1.1": 1, "layer2": 2,
-                                 "layer3": 3, "layer4": 4}
-                    if mid.startswith("LC_"):
-                        pct = float(mid.split("_")[1].replace("pct", "")) / 100
-                        return {"mutation_type_encoded": 4, "mutation_layer_encoded": 0,
-                                "mutation_strength": pct}
-                    parts = mid.split("_")
-                    op_code = parts[0]
-                    if op_code == "WF":
-                        op_str = f"weight_fuzz_{parts[1]}"
-                        layer_key = parts[2]
-                    elif op_code == "WN":
-                        op_str = "weight_negate"
-                        layer_key = parts[1]
-                    else:  # WZ
-                        op_str = "weight_zero"
-                        layer_key = parts[1]
-                    return {
-                        "mutation_type_encoded": op_enc.get(op_str, 0),
-                        "mutation_layer_encoded": layer_enc.get(layer_key, 0),
-                        "mutation_strength": 0.0,
-                    }
-
-                mutant_profiles_local = pd.DataFrame([parse_mutant_local(m) for m in mutant_ids_l])
-
-                # MR metadata (from mr_library and mr_scores)
-                mr_info = mr_lib_loaded.merge(mr_scores_loaded, on="mr_id", how="left")
-
-                rows = []
-                for _, mr_row in mr_info.iterrows():
-                    base = {
-                        "_mr": mr_row["mr_id"],
-                        "mr_type_encoded": int(
-                            pd.Series({
-                                "flip": 1, "rotate": 2, "noise": 3, "brightness": 4,
-                                "contrast": 5, "blur": 6, "crop": 7, "salt_pepper": 8,
-                                "saturation": 9, "jpeg": 10, "composite": 11,
-                                "translation": 12, "scale": 13, "sharpen": 14,
-                                "posterize": 15, "shear": 16,
-                            }).get(mr_row["mr_type"], 0)
-                        ),
-                        "mr_magnitude": float(mr_row["magnitude"]),
-                        "mr_cost_ms": float(mr_row["cost_ms"]),
-                        "mr_is_composite": int(mr_row["is_composite"]),
-                        "mr_category_encoded": int(
-                            pd.Series({
-                                "geometric": 1, "photometric": 2,
-                                "noise": 3, "composite": 4,
-                            }).get(mr_row["category"], 0)
-                        ),
-                        "model_avg_weight_magnitude": avg_weight_magnitude,
-                        "model_weight_std": weight_std,
-                        "model_test_accuracy": test_accuracy,
-                    }
-                    for mu in mutant_profiles_local.to_dict("records"):
-                        rows.append({**base, **mu})
-
-                X = pd.DataFrame(rows)
-                X["p"] = clf.predict_proba(X[feature_cols])[:, 1]
-                mean_p = X.groupby("_mr")["p"].mean().sort_values(ascending=False)
-
-                result_rows = [
-                    {"rank": i + 1, "mr_id": mr_id, "predicted_kill_prob": round(float(p), 4)}
-                    for i, (mr_id, p) in enumerate(mean_p.items())
-                ]
-                result_df = pd.DataFrame(result_rows)
-                result_df = result_df.merge(mr_lib_loaded[["mr_id", "name", "category"]], on="mr_id", how="left")
-
-            st.success("Inference complete!")
-            st.markdown("#### Predicted MR Ranking for Your Model")
-
-            fig_infer = px.bar(
-                result_df,
-                x="mr_id", y="predicted_kill_prob",
-                color="category",
-                hover_data=["name"],
-                color_discrete_sequence=px.colors.qualitative.Vivid,
-                labels={"predicted_kill_prob": "Predicted Kill Probability", "mr_id": ""},
-                category_orders={"mr_id": result_df["mr_id"].tolist()},
-            )
-            fig_infer.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                height=340,
-                margin=dict(l=10, r=10, t=20, b=10),
-            )
-            st.plotly_chart(fig_infer, use_container_width=True)
-            st.dataframe(
-                result_df[["rank", "mr_id", "name", "category", "predicted_kill_prob"]]
-                .set_index("rank"),
-                use_container_width=True,
-            )
-
-            st.download_button(
-                "⬇ Download ranking as CSV",
-                data=result_df.to_csv(index=False),
-                file_name="mr_ranking_custom_model.csv",
-                mime="text/csv",
-            )
-
-
-with tab_about:
+if page == "About":
+    section_header("04 / RESEARCH NOTES", "Study documentation", "The method, experimental setup, and limitations behind these results.")
     st.markdown("## About MR-Rank")
     st.markdown("""
 **MR-Rank** is a scoring framework for prioritizing Metamorphic Relations (MRs) when testing
@@ -711,3 +418,5 @@ The classifier uses **11 features** per (MR, mutant) row:
         "</div>",
         unsafe_allow_html=True,
     )
+
+st.markdown('<a class="back-to-top" href="#page-top" target="_self">↑ Back to top</a>', unsafe_allow_html=True)
