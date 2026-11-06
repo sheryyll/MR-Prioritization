@@ -32,33 +32,30 @@ st.set_page_config(
     page_title="MR-Rank | Metamorphic Relation Prioritization",
     page_icon="🧪",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 apply_theme()
 
-with st.sidebar:
-    st.markdown("### MR-Rank")
-    st.caption("RESEARCH WORKBENCH / v1.0.0")
-    page = st.radio("Workspace", ["Rankings", "Evaluation", "Run my MRs", "About"], label_visibility="collapsed")
-    st.divider()
-    st.markdown("**Study context**")
-    st.caption("MODEL UNDER TEST")
-    st.markdown("ResNet-18")
-    st.caption("DATASET")
-    st.markdown("CIFAR-10 · 500 evaluation images")
-    st.caption("EXPERIMENT")
-    st.markdown("20 relations · 80 mutants")
-    st.divider()
-    with st.expander("Reading the results"):
-        st.markdown("**APFD** measures how early faults are detected; higher is better. "
-                    "**FDR** is the fraction of mutants detected by a relation. "
-                    "**Diversity** rewards coverage of different faults.")
-    st.info("Research results are specific to this study. See About for evaluation limitations.")
+st.markdown('<div id="page-top"></div>', unsafe_allow_html=True)
+st.markdown("### MR-Rank")
+with st.container(key="main_navigation"):
+    page = st.radio(
+        "Main navigation", ["Rankings", "Evaluation", "Run my MRs", "About"],
+        horizontal=True, label_visibility="collapsed", key="workspace_page",
+    )
+st.caption("ResNet-18 · CIFAR-10 · 20 relations · 80 mutants")
 
-st.caption("MR-RANK / METAMORPHIC TESTING")
-st.title(page)
-st.caption("ResNet-18 · CIFAR-10 · Research experiment v1.0.0")
+
+def jump_links(items):
+    links = "".join(f'<a href="#{target}" target="_self">{label}</a>' for target, label in items)
+    st.markdown(f'<nav class="section-links" aria-label="On this page"><span>Jump to</span>{links}</nav>',
+                unsafe_allow_html=True)
+
+
+def anchor(name):
+    st.markdown(f'<div id="{name}" class="section-anchor"></div>', unsafe_allow_html=True)
+
 
 @st.cache_data(show_spinner=False)
 def load_greedy() -> pd.DataFrame:
@@ -100,6 +97,7 @@ eval_data = load_eval()
 #  Tab 4: Run my MRs
 if page == "Run my MRs":
     section_header("03 / MR WORKBENCH", "Custom relations", "Work through the existing custom-relation workflow below.")
+    jump_links([("define-mrs", "Define MRs"), ("evaluate-mrs", "Evaluate & rank")])
     mr_tab.render()
 
 if page == "Rankings":
@@ -110,6 +108,9 @@ if page == "Rankings":
 
     section_header("01 / RANKINGS", "Prioritization methods",
                    "Inspect each ordering, then compare how individual relations move between methods.")
+    jump_links([("greedy-ranking", "Greedy ranking"), ("meta-ranking", "Meta-classifier"),
+                ("rank-comparison", "Compare rankings")])
+    anchor("greedy-ranking")
     with st.container():
         st.markdown("### Greedy Ranking — Model A")
         st.caption(
@@ -154,6 +155,7 @@ if page == "Rankings":
             )
 
     st.divider()
+    anchor("meta-ranking")
     with st.container():
         st.markdown("### Meta-Classifier Ranking — Model B")
         st.caption(
@@ -196,6 +198,7 @@ if page == "Rankings":
 
     # Side-by-side rank comparison
     st.divider()
+    anchor("rank-comparison")
     st.markdown("### Side-by-Side Rank Comparison")
     merged = greedy_df[["mr_id", "rank"]].rename(columns={"rank": "rank_greedy"}).merge(
         meta_df[["mr_id", "rank"]].rename(columns={"rank": "rank_meta"}), on="mr_id"
@@ -235,6 +238,8 @@ if page == "Rankings":
 
 
 if page == "Evaluation":
+    jump_links([("apfd", "Performance summary"), ("detection-curve", "Detection curve"),
+                ("kill-matrix", "Kill matrix"), ("fdr", "Detection rate per MR")])
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("MRs", len(mr_ids))
     m2.metric("Mutants", len(mutant_ids))
@@ -249,6 +254,7 @@ if page == "Evaluation":
     km_bool = km_df.values.astype(bool)
     n_det = int(km_bool.any(axis=0).sum())
 
+    anchor("apfd")
     st.markdown("### APFD Comparison")
     st.caption(
         "**Average Percentage of Faults Detected** (higher is better). "
@@ -276,6 +282,7 @@ if page == "Evaluation":
         st.caption(f"Wilcoxon (Greedy vs 30 random trials): p = {pval:.2e} — {sig_str} at α = 0.05")
 
     st.divider()
+    anchor("detection-curve")
     st.markdown("### FD@k — Fault Detection Curve")
     st.caption("Fraction of detectable mutants found by using only the top-k MRs.")
 
@@ -313,10 +320,12 @@ if page == "Evaluation":
     plot_chart(fig_fdk, use_container_width=True)
 
     st.divider()
+    anchor("kill-matrix")
     render_matrix(km_df, load_mr_library(), load_greedy()["mr_id"].tolist())
 
     # FDR bar chart
     st.divider()
+    anchor("fdr")
     st.markdown("### Fault Detection Rate per MR")
     mr_scores_df = load_mr_scores()
     mr_lib = load_mr_library()
@@ -409,3 +418,5 @@ The classifier uses **11 features** per (MR, mutant) row:
         "</div>",
         unsafe_allow_html=True,
     )
+
+st.markdown('<a class="back-to-top" href="#page-top" target="_self">↑ Back to top</a>', unsafe_allow_html=True)

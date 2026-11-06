@@ -392,11 +392,13 @@ def render() -> None:
                    "You can still view a ranking below.")
         _results_viewer()
         return
+    st.markdown('<div id="define-mrs" class="section-anchor"></div>', unsafe_allow_html=True)
     with st.container(border=True):
         specs, mrs = _specs_input()
     if mrs:
         with st.container(border=True):
             _preview(mrs)
+    st.markdown('<div id="evaluate-mrs" class="section-anchor"></div>', unsafe_allow_html=True)
     with st.container(border=True):
         server_used = _evaluation(specs, mrs)
     ok, _ = can_run_locally()
