@@ -1,0 +1,43 @@
+[
+  {
+    "id": "U14",
+    "name": "Minimal Translation",
+    "type": "translation",
+    "params": {
+        "dx": 0.05,
+        "dy": 0.05
+    }
+  },
+  {
+    "id": "U15",
+    "name": "Very Mild Shear",
+    "type": "shear",
+    "params": {
+      "shear_factor": 0.02
+    }
+  },
+  {
+    "id": "U16",
+    "name": "Near-Identity Scaling",
+    "type": "scale",
+    "params": {
+      "factor": 0.995
+    }
+  },
+  {
+    "id": "U17",
+    "name": "Slight Contrast Adjustment",
+    "type": "contrast",
+    "params": {
+      "factor": 1.02
+    }
+  },
+  {
+    "id": "U18",
+    "name": "Very High Quality JPEG",
+    "type": "jpeg",
+    "params": {
+      "quality": 99
+    }
+  }
+]
