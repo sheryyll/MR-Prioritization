@@ -42,7 +42,7 @@ def render_matrix(matrix, library, greedy_order):
     labels = [f"{mr} · {names.get(mr, mr)}" for mr in ordered.index]
     summary = detection_summary(ordered, groups)
     summary.index = pd.Index(labels, name="Metamorphic relation")
-    st.dataframe(summary, width="stretch", height=740)
+    st.dataframe(summary, width="stretch", height=460)
 
     st.subheader("Individual mutant outcomes")
     st.caption("Amber = detected · Charcoal = not detected. Select a family for larger cells; "
@@ -77,7 +77,7 @@ def render_matrix(matrix, library, greedy_order):
                      ticktext=[codes[c] for c in columns], tickangle=-90,
                      tickfont=dict(size=9), title="Mutant display identifier", showgrid=False)
     fig.update_yaxes(autorange="reversed", showgrid=False, automargin=True)
-    fig.update_layout(height=820, margin=dict(l=10, r=10, t=65, b=70))
+    fig.update_layout(height=620, margin=dict(l=10, r=10, t=65, b=70))
     plot_chart(fig, use_container_width=True)
     with st.expander("Mutant identifier key"):
         st.dataframe(pd.DataFrame({"Display ID": [codes[c] for c in columns],

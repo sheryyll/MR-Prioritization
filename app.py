@@ -144,7 +144,7 @@ if page == "Rankings":
             xaxis=dict(tickfont=dict(size=11)),
             legend_title="Category",
         )
-        fig_greedy.update_layout(height=660, xaxis_title="Priority score", yaxis_title=None)
+        fig_greedy.update_layout(height=520, xaxis_title="Priority score", yaxis_title=None)
         fig_greedy.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=greedy_display["label"].tolist())
         plot_chart(fig_greedy, use_container_width=True)
 
@@ -186,7 +186,7 @@ if page == "Rankings":
             xaxis=dict(tickfont=dict(size=11)),
             legend_title="Category",
         )
-        fig_meta.update_layout(height=660, xaxis_title="Predicted kill probability", yaxis_title=None)
+        fig_meta.update_layout(height=520, xaxis_title="Predicted kill probability", yaxis_title=None)
         fig_meta.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=meta_display["label"].tolist())
         plot_chart(fig_meta, use_container_width=True)
 
@@ -230,7 +230,7 @@ if page == "Rankings":
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        height=550,
+        height=460,
         margin=dict(l=80, r=80, t=20, b=20),
     )
     plot_chart(fig_cmp, use_container_width=True)
@@ -312,7 +312,7 @@ if page == "Evaluation":
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=10, r=10, t=20, b=10),
-        height=380,
+        height=340,
         xaxis_title="MR budget k",
         yaxis_title="Fraction of detectable mutants found",
         xaxis=dict(dtick=1),
@@ -390,7 +390,7 @@ The classifier uses **11 features** per (MR, mutant) row:
 """)
 
     st.markdown(
-        "<div style='text-align:center;color:var(--mr-muted);font-size:0.8rem'>"
+        "<div style='text-align:center;color:var(--mr-muted);font-size:0.9rem'>"
         "MR-Rank · ResNet-18 × CIFAR-10 · "
         "Deployed on Streamlit Community Cloud"
         "</div>",
