@@ -1,0 +1,53 @@
+[
+  {
+    "id": "U09",
+    "name": "Slight Image Rotation",
+    "type": "rotate",
+    "params": {
+      "angle": 5.0
+    }
+  },
+  {
+    "id": "U10",
+    "name": "Mild Gaussian Noise",
+    "type": "noise",
+    "params": {
+      "sigma": 0.03
+    }
+  },
+  {
+    "id": "U11",
+    "name": "Mild Salt and Pepper Noise",
+    "type": "salt_pepper",
+    "params": {
+      "amount": 0.02
+    }
+  },
+  {
+    "id": "U12",
+    "name": "Mild Posterization",
+    "type": "posterize",
+    "params": {
+      "bits": 2
+    }
+  },
+  {
+    "id": "U13",
+    "name": "Brightness and Saturation Adjustment",
+    "type": "composite",
+    "steps": [
+      {
+        "type": "brightness",
+        "params": {
+          "delta": 5
+        }
+      },
+      {
+        "type": "saturation",
+        "params": {
+          "factor": 0.95
+        }
+      }
+    ]
+  }
+]

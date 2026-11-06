@@ -1,0 +1,55 @@
+[
+  {
+    "id": "U04",
+    "name": "Slight Scale Up",
+    "type": "scale",
+    "params": {
+      "factor": 1.05
+    }
+  },
+  {
+    "id": "U05",
+    "name": "Slight Desaturation",
+    "type": "saturation",
+    "params": {
+      "factor": 0.90
+    }
+  },
+  {
+    "id": "U06",
+    "name": "Mild Sharpening",
+    "type": "sharpen",
+    "params": {
+      "amount": 0.8,
+      "ksize": 3
+    }
+  },
+  {
+    "id": "U07",
+    "name": "High Quality JPEG Compression",
+    "type": "jpeg",
+    "params": {
+      "quality": 95
+    }
+  },
+  {
+    "id": "U08",
+    "name": "Translation + Mild Contrast",
+    "type": "composite",
+    "steps": [
+      {
+        "type": "translation",
+        "params": {
+          "dx": 2.0,
+          "dy": -2.0
+        }
+      },
+      {
+        "type": "contrast",
+        "params": {
+          "factor": 1.05
+        }
+      }
+    ]
+  }
+]
