@@ -11,11 +11,19 @@ gatherUsageStats = false
 
 [theme]
 base = "dark"
+font = "sans serif"
+
+[theme.light]
+primaryColor = "#805B20"
+backgroundColor = "#FAFAF8"
+secondaryBackgroundColor = "#F0F1EE"
+textColor = "#252724"
+
+[theme.dark]
 primaryColor = "#D4A65A"
 backgroundColor = "#18191B"
 secondaryBackgroundColor = "#232528"
 textColor = "#E8E6E1"
-font = "sans serif"
 
 [runner]
 # Suppress torch-related deprecation warnings that leak from dependencies
