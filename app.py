@@ -5,7 +5,7 @@ Tabs:
   1. Rankings         — Greedy + Meta-classifier tables & charts
   2. Evaluation       — APFD table, FD@k curves, kill-matrix heatmap
   3. Run my MRs      — Define, preview, and evaluate custom MRs
-  4. About            — Project summary, version, known issues
+  4. About            — Project summary and experimental setup
 
 Hard constraints:
   * NO torch / torchvision import anywhere in this file.
@@ -45,6 +45,7 @@ with st.container(key="main_navigation"):
         horizontal=True, label_visibility="collapsed", key="workspace_page",
     )
 st.caption("ResNet-18 · CIFAR-10 · 20 relations · 80 mutants")
+st.caption("Appearance: choose Light or Dark from the top-right ⋮ menu.")
 
 
 def jump_links(items):
@@ -351,7 +352,7 @@ if page == "Evaluation":
 
 
 if page == "About":
-    section_header("04 / RESEARCH NOTES", "Study documentation", "The method, experimental setup, and limitations behind these results.")
+    section_header("04 / RESEARCH NOTES", "Study documentation", "The method and experimental setup behind these results.")
     st.markdown("## About MR-Rank")
     st.markdown("""
 **MR-Rank** is a scoring framework for prioritizing Metamorphic Relations (MRs) when testing
@@ -388,31 +389,8 @@ The classifier uses **11 features** per (MR, mutant) row:
 ---
 """)
 
-    col_ver, col_date = st.columns(2)
-    col_ver.metric("App version", "1.0.0")
-    col_date.metric("Last updated", "2026-10-07")
-
-    st.markdown("---")
-    st.markdown("###  Known Issues / Limitations")
-    st.info("""
-
-1. **MR15 (Scale Down) and MR12 (Unsharp Mask) dominate** — together they cover every detectable
-   mutant, so APFD cannot meaningfully separate Greedy from FDR-only ordering on this dataset.
-
-2. **In-sample evaluation** — rankings are evaluated on the same kill matrix they were built from.
-   Independent validation against new mutant families is future work.
-
-3. **Wilcoxon test is simplified** — a single deterministic APFD is compared against 30 random
-   trials by repeating it 30 times. Treat the p-value as an indicative statistic, not a rigorous
-   statistical test.
-
-4. **App may sleep after inactivity** — Streamlit Community Cloud free-tier apps sleep after
-   ~20 minutes of no traffic. The first wake-up request may take 30–60 seconds.
-""")
-
-    st.markdown("---")
     st.markdown(
-        "<div style='text-align:center;color:#475569;font-size:0.8rem'>"
+        "<div style='text-align:center;color:var(--mr-muted);font-size:0.8rem'>"
         "MR-Rank · ResNet-18 × CIFAR-10 · "
         "Deployed on Streamlit Community Cloud"
         "</div>",
